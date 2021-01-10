@@ -14,7 +14,7 @@ Make sure you checkout the [PyBullet Quickstart Guide](https://docs.google.com/d
 Reading documentation will be crucial in becoming comfortable with PyBullet.
 
 ## Hello PyBullet
-A physics simulation is established by calling p.connect(). With p.GUI, a new window will be created for visualization and debugging purpose. Alternatively, p.DIRECT provides the fastest connection without visulization.
+A physics simulation is established by calling p.connect(). With p.GUI, a new window will be created for visualization and debugging purposes. Alternatively, p.DIRECT provides the fastest connection without visualization.
 
 
 Both GUI and DIRECT connections will execute the physics simulation and rendering in the same process as PyBullet.
@@ -41,10 +41,10 @@ import pybullet_data
 p.setAdditionalSearchPath(pybullet_data.getDataPath())
 ```
 
-P.loadURDF allows you to create a robot as specified in a URDF file. It returns an integer which is the ID passed into other function to query the state of a robot and perform actions on it.
+P.loadURDF allows you to create a robot as specified in a URDF file. It returns an integer which is the ID passed into another function to query the state of a robot and perform actions on it.
 
 
-We created a plane and a husky robot in our physics simulation. The basePostion of husky robot in 3D is [x,y,z] = [0,0,0.2]. By using `p.setGravity(0, 0, -10, physicsClientId=client)`, we initiate the gravity in physical simulation who's Id = client.
+We created a plane and a husky robot in our physics simulation. The basePostion of the husky robot in 3D is [x,y,z] = [0,0,0.2]. By using `p.setGravity(0, 0, -10, physicsClientId=client)`, we initiate the gravity in physical simulation who's Id = client.
 ```
 p.setGravity(0, 0, -10, physicsClientId=client)
 planeId = p.loadURDF("plane.urdf")
@@ -52,7 +52,7 @@ huskyId = p.loadURDF("husky/husky.urdf", basePosition=[0,0,0.2])
 ```
 
 Now we are able to create our first PyBullet simulation. A husky robot will fall to the plane and the simulation will end shortly.
-We will run the simulation for 10000 time steps. Each time steps is 1/240 of a second.
+We will run the simulation for 10000 time steps. Each time step is 1/240 of a second.
 
 ```
 for _ in range(10000): 
