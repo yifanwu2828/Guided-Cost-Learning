@@ -1,5 +1,5 @@
 # Simple PyBullet Example 
-This guide assumes rudimentary knowledge of the structure of OpenAI Gym environments, along with proficiency in Python.
+This guide assumes rudimentary knowledge of robotics, along with proficiency in Python.
 
 ## Pybullet Installation
 [PyBullet](https://github.com/bulletphysics/bullet3) Installation is simple:
