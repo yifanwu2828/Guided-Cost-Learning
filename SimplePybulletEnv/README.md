@@ -67,9 +67,9 @@ for _ in range(10000):
     p.applyExternalForce(huskyId, 0, [480, 0, 0], position, p.WORLD_FRAME)
     p.stepSimulation()
 ```
-The car should move a little bit forward in the simulation by applying `p.applyExternalForce()` Note that this method will only work when explicitly stepping the simulation using stepSimulation.
+The car should move a little bit forward in the simulation by applying `p.applyExternalForce()` Note that this method will only work when explicitly stepping the simulation using stepSimulation. 
 
 
-In general, applying an external force to move the robot is not a good practice. It is better to apply a force to the axle of the car.
+A simple demo can be downloaded [here](https://github.com/yifanwu2828/Inverse-Reinforcement-Learning/blob/main/SimplePybulletEnv/simplePybulletExample.py). Try to change into another interesting robot model listed in [PyBullet Quickstart Guide](https://docs.google.com/document/d/10sXEhzFRSnvFcl3XxNGhnD4N2SedqwdAvK3dsihxVUA/edit#heading=h.2ye70wns7io3) and adjust the external force. In general, applying an external force to move the robot is not a good practice. It is better to apply a force to the axle of the car.
 
 
