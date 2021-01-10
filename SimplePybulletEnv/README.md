@@ -41,7 +41,16 @@ P.loadURDF allows you to create a robot as specified in a URDF file. It returns 
 
 We created a plane and a racercar model in our physics simulation. The basePostion of racercar in 3D is [x,y,z] = [0,0,0.2]. By using `p.setGravity(0, 0, -10, physicsClientId=client)`, we initiate the gravity in physical simulation who's Id = client
 ```
+p.setGravity(0, 0, -10, physicsClientId=client)
 planeId = p.loadURDF("plane.urdf")
 racecarId = p.loadURDF("racecar/racecar.urdf", basePosition=[0,0,0.2])
-p.setGravity(0, 0, -10, physicsClientId=client)
 ```
+
+Now we are able to create our first PyBullet simulation. A racer car will fall on the plane and the simulation will end shortly.
+
+```
+for _ in range(10000): 
+    p.stepSimulation()
+```
+
+
