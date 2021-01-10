@@ -48,7 +48,7 @@ We created a plane and a husky robot in our physics simulation. The basePostion 
 ```
 p.setGravity(0, 0, -10, physicsClientId=client)
 planeId = p.loadURDF("plane.urdf")
-racecarId = p.loadURDF("racecar/racecar.urdf", basePosition=[0,0,0.2])
+huskyId = p.loadURDF("husky/husky.urdf", basePosition=[0,0,0.2])
 ```
 
 Now we are able to create our first PyBullet simulation. A husky robot will fall to the plane and the simulation will end shortly.
