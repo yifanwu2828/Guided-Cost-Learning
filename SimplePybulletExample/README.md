@@ -52,7 +52,7 @@ huskyId = p.loadURDF("husky/husky.urdf", basePosition=[0,0,0.2])
 ```
 
 Now we are able to create our first PyBullet simulation. A husky robot will fall to the plane and the simulation will end shortly.
-We will run the simulation for 10000 time steps. Each time step is 1/240 of a second.
+`stepSimulation()` will perform all the actions in a single forward dynamics simulation step. We will run the simulation for 10000 time steps. Each time step is 1/240 of a second.
 
 ```
 for _ in range(10000): 
