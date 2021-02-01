@@ -55,4 +55,13 @@ In practice, we do not know the true value of advantage. We have to estimate it.
 
 ### Sample Result from performing Policy Gradient with estimated Advantage Function and a Value Function as A Baseline
 
+lr=4e-3, n_itr=200
+![Screenshot](4e-3_nitr_200.png)
 
+lr=5e-3, n_itr= 200 
+![Screenshot](5e-3_nitr_200.png)
+
+lr=7e-3, n_itr=300
+![Screenshot](7e-3_nitr_300.png)
+
+In continuous action space, the variance is still high, but we can see our agent in making progress to achieve maximum rewards(1000)
