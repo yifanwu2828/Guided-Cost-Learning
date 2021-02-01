@@ -10,6 +10,7 @@ J(theta) = E_{\tau ~ pi_{theta}(\tau)}[r(tau)]
 
 where pi_{theta} is a probability distribution over the action space, conditioned on the state. In the agent environment loop, the agent samples and action a_t form pi_{theta}(*|s_t) and the environment responds with a reward(s_t,a_t)
 
+### Disceret or Continous Action Space
 A discrete flag is used when initiating MLPPolicyPG:
 
 In a discrete action space, a categorical distribution is used to approximate pi_{theta}
@@ -41,6 +42,7 @@ else:
                 self.learning_rate
             )
             
+### Reducing Variance 
 One of the disadvantages of policy gradient is that it has a high variance. To reduce variance "reward to go", denoted as rtg and baseline are introduced.
 
 Reward to go inherent from Causality: policy at time t' cannot affect reward at time t when t<t'. Therefore, Q function is the total reward form taking a_t in s_t then follow the policy
@@ -49,6 +51,8 @@ subtracting a baseline from the policy gradient is unbiased in expectation. Alth
 
 The difference between rtg and baseline as a value function estimates how much better action a_it is than the average action take in s_it. In fact the difference between rtg and value funciton is so popular and it is called advantage function denoted as A^{pi}(s_t,a_t)
 
-In practice, we do not know the true value of advantage. We have to estimate it. The better our estimate of the advantage, the lower our variance will be. The estimation doesn't necessarily produce unbiased estimates of advantage function. It is acceptable that we trade off enormous reduction in variance with slightly increase in bias 
+In practice, we do not know the true value of advantage. We have to estimate it. The better our estimate of the advantage, the lower our variance will be. The estimation doesn't necessarily produce unbiased estimates of advantage function. It is acceptable that we trade off enormous reduction in variance with slightly increase in bias. 
+
+### Sample Result from performing Policy Gradient with estimated Advantage Function and a Value Function as A Baseline
 
 
