@@ -53,7 +53,8 @@ The difference between rtg and baseline as a value function estimates how much b
 
 In practice, we do not know the true value of advantage. We have to estimate it. The better our estimate of the advantage, the lower our variance will be. The estimation doesn't necessarily produce unbiased estimates of advantage function. It is acceptable that we trade off enormous reduction in variance with slightly increase in bias. 
 
-### Sample Result from performing Policy Gradient with estimated Advantage Function and a Value Function as A Baseline
+### Sample Result
+Performing policy gradient with estimated advantage function and a value function as a baseline
 
 lr=4e-3, n_itr=200
 ![Screenshot](4e-3_nitr_200.png)
