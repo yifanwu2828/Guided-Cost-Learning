@@ -10,14 +10,14 @@ from torch import distributions
 
 from gcl.scripts import utils
 from gcl.scripts import pytorch_util as ptu
-from cs285.policies.base_policy import BasePolicy
+from gcl.agents.base_policy import BasePolicy
 
 
 class MLPPolicy(BasePolicy, nn.Module, metaclass=abc.ABCMeta):
     """
     Policy for predicting a Gaussian action distribution
     """
-    def __init__(self,ac_dim, ob_dim, n_layers, size,
+    def __init__(self, ac_dim, ob_dim, n_layers, size,
                  learning_rate=1e-4, training=True,
                  **kwargs):
         super().__init__(**kwargs)
@@ -92,9 +92,9 @@ class MLPPolicyPG(MLPPolicy):
     """
     Policy that uses policy gradient to update parameters
     """
-    def __init__(self, ac_dim, ob_dim, n_layers, size, **kwargs):
+    def __init__(self, ac_dim, ob_dim, n_layers, size, nn_baseline, **kwargs):
 
-        super().__init__(ac_dim, ob_dim, n_layers, size, nn_baseline=False, **kwargs)
+        super().__init__(ac_dim, ob_dim, n_layers, size, **kwargs)
         if nn_baseline:
             self.baseline = ptu.build_mlp(
                 input_size=self.ob_dim,

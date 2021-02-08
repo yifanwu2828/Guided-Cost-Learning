@@ -1,10 +1,11 @@
-from gcl.policies.MLP_policy import MLPPolicy
-from base_agent import BaseAgent 
+from gcl.agents.mlp_policy import MLPPolicyPG
+from gcl.agents.base_agent import BaseAgent 
+from gcl.agents.mlp_reward import MLPReward
+from gcl.scripts.replay_buffer import ReplayBuffer
 
-
-class IRL_Agent(BaseAgent):
+class GCL_Agent(BaseAgent):
     def __init__(self, env, agent_params):
-        super(IRLAgent, self).__init__()
+        super(GCL_Agent, self).__init__()
 
         # init vars
         self.env = env
@@ -24,7 +25,11 @@ class IRL_Agent(BaseAgent):
         # reward function
         self.reward = MLPReward(
             self.agent_params['ac_dim'],
-            self.agent_params['ob_dim']
+            self.agent_params['ob_dim'],
+            self.agent_params['n_layers'],
+            self.agent_params['size'],
+            self.agent_params['output_size'],
+            learning_rate=self.agent_params['learning_rate']
         )
 
         # Replay buffers: demo holds expert demonstrations and sample holds policy samples

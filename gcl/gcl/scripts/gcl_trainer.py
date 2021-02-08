@@ -1,8 +1,9 @@
 import os
 import sys
+import time
 
 import gym
-from gym import wrappers
+import gym_nav
 import numpy as np 
 import torch
 
@@ -12,7 +13,7 @@ import utils
 # TODO: set global variables for saved videos
 
 
-class IRL_Trainer():
+class GCL_Trainer():
 
     def __init__(self, params):
 
@@ -44,11 +45,12 @@ class IRL_Trainer():
 
         # TODO: set up plotting
 
+        # Are the observations images?
+        img = len(self.env.observation_space.shape) > 2
 
         # Observation and action sizes
-
         ob_dim = self.env.observation_space.shape if img else self.env.observation_space.shape[0]
-        ac_dim = self.env.action_space.n if discrete else self.env.action_space.shape[0]
+        ac_dim = self.env.action_space.shape[0]
         self.params['agent_params']['ac_dim'] = ac_dim
         self.params['agent_params']['ob_dim'] = ob_dim
 
