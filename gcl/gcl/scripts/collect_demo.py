@@ -1,3 +1,4 @@
+import time
 import gym 
 import gym_nav 
 from stable_baselines3 import A2C, SAC, PPO
@@ -7,7 +8,7 @@ from stable_baselines3.common.env_util import make_vec_env
 
 def main():
     # Parallel environments
-    env = make_vec_env('NavEnv-v0', n_envs=16) 
+    env = make_vec_env('NavEnv-v0', n_envs=16)
     model = PPO(MlpPolicy, env, verbose=1)
     model.learn(total_timesteps=1e6) 
 
