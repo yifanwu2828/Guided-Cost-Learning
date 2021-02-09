@@ -1,5 +1,5 @@
 import gym 
-import gym_nav
+import gym_nav 
 from stable_baselines3 import A2C, SAC, PPO
 from stable_baselines3.ppo import MlpPolicy
 #from stable_baselines3.sac import MlpPolicy

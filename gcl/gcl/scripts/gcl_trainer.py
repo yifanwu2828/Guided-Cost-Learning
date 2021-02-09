@@ -70,7 +70,7 @@ class GCL_Trainer():
         """
         :param n_iter:  number of iterations
         :param collect_policy: q_k
-        :param initial_expertdata: D_demo
+        :param initial_expert_data: D_demo
         :param expert_policy:
         """
 
@@ -79,19 +79,10 @@ class GCL_Trainer():
         self.start_time = time.time()
 
         # Algorithm 1: Guided cost learning
-        # Load expert policy or expert demonstrations D_demo
-        if initial_expert_data:
-            print('\nLoading saved demonstrations...')
-            with open(initial_expertdata, 'rb') as f:
-                demo_paths = pickle.load(f)
-            # TODO: sample self.params['demo_size'] from demo_paths
-        elif expert_policy:
-            print('\nRunning expert policy to collect demonstrations...')
-            demo_paths, envsteps = utils.sample_trajectories(self.env, expert_policy, self.params['demo_size'])
-        else:
-            raise ValueError('Please provide either expert demonstrations or expert policy')
+        paths = self.collect_demo_trajectories(initial_expert_data, expert_policy)
+
         # add demonstrations to replay buffer
-        self.agent.add_to_replay_buffer(demo_paths)
+        self.agent.add_to_demo_buffer(demo_paths)
 
         for itr in range(n_iter):
             print("\n********** Iteration {} ************".format(itr))
@@ -112,6 +103,29 @@ class GCL_Trainer():
 
             # Update q_k(\tau) using D_{traj} and use Guided policy search to obtain q_{k+1}(\tau)
             self.train_agent()
+
+    def collect_demo_trajectories(self, initial_expert_data, expert_policy):
+        """
+        :param initial_expert_data:  relative path to saved 
+        :param expert_policy:  relative path to saved expert policy
+        :return:
+            paths: a list of trajectories
+        """
+        # Load expert policy or expert demonstrations D_demo
+        if initial_expert_data:
+            print('\nLoading saved demonstrations...')
+            with open(initial_expert_data, 'rb') as f:
+                demo_paths = pickle.load(f)
+            # TODO: sample self.params['demo_size'] from demo_paths
+        elif expert_policy:
+            # TODO: make this to accept other expert policies
+            from stable_baselines3 import PPO
+            expert_policy = PPO.load("expert_policy")
+            print('\nRunning expert policy to collect demonstrations...')
+            demo_paths, envsteps = utils.sample_trajectories(self.env, expert_policy, self.params['demo_size'])
+        else:
+            raise ValueError('Please provide either expert demonstrations or expert policy')
+        return paths
 
     def collect_training_trajectories(self, collect_policy, batch_size):
         """

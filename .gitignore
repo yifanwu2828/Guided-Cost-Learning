@@ -1,3 +1,6 @@
+# Data
+*.zip
+
 # Vitualenv
 .env
 .venv

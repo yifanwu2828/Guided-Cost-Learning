@@ -52,9 +52,11 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--env_name', type=str, default='NavEnv-v0')
     parser.add_argument('--exp_name', type=str, default='todo')
-    parser.add_argument('--expert_policy_file', '-epf', type=str, default='')    # relative to where you're running this script from
-    parser.add_argument('--expert_data', '-ed', type=str, default='')            # relative to where you're running this script from
-    
+    parser.add_argument('--expert_policy_file', type=str, default='')               # relative to where you're running this script from
+    parser.add_argument('--expert_data', type=str, default='ppo_nav_env')            # relative to where you're running this script from
+    parser.add_argument('--demo_size', type=int, default=1000)
+    parser.add_argument('--batch_size', type=int, default=1000)
+
     parser.add_argument('--discount', type=float, default=1.0)    
     parser.add_argument('--reward_to_go', '-rtg', action='store_true')
     parser.add_argument('--nn_baseline', action='store_true')
