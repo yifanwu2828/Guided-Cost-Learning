@@ -18,8 +18,8 @@ class MLPPolicy(BasePolicy, nn.Module, metaclass=abc.ABCMeta):
     Policy for predicting a Gaussian action distribution
     """
     def __init__(self, ac_dim, ob_dim, n_layers, size,
-                 learning_rate=1e-4, training=True,
-                 **kwargs):
+                 learning_rate=1e-4, training=True, 
+                 nn_baseline=False, **kwargs):
         super().__init__(**kwargs)
 
         # init vars
@@ -29,6 +29,7 @@ class MLPPolicy(BasePolicy, nn.Module, metaclass=abc.ABCMeta):
         self.size = size
         self.learning_rate = learning_rate
         self.training = training
+        self.nn_baseline = nn_baseline
 
         # Only consider continuous action space
         self.logits_na = None

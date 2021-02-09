@@ -48,20 +48,35 @@ class MLPReward(nn.Module):
     def forward(self, observation: torch.FloatTensor, action: torch.FloatTensor):
         """
         Returns the reward for the current state and action
+        c(x, u) = |Ay + b|^2 + w |u|^2 where y = mlp(x)
         """
         y = self.mlp(observation)
-        z = torch.mm(self.A, y) + self.b
-        c = torch.dot(z, z) + self.w * torch.dot(action, action)
+        z = torch.matmul(y, self.A) + self.b
+        r = -(z * z).sum(-1) - self.w * (action * action).sum(-1)
+        return r
 
-        return -c
-
-    def update(self, observations, actions):
+    def update(self, demo_obs, demo_acs, sample_obs, sample_acs):
         """
         Computes the loss and updates the reward parameters
         Objective is to maximize sum of demo rewards and minimize sum of sample rewards
         Use importance sampling for policy samples
         """
+        demo_obs = ptu.from_numpy(demo_obs)
+        demo_acs = ptu.from_numpy(demo_acs)
+        sample_obs = ptu.from_numpy(sample_obs)
+        sample_acs = ptu.from_numpy(sample_acs)
 
-        reward = self(observations, actions)
+        demo_return = self(demo_obs, demo_acs).sum(-1)
+        sample_return = self(sample_obs, sample_acs).sum(-1)
 
-        raise NotImplementedError
+        # TODO: Use importance sampling to estimate sample return 
+        loss = -torch.mean(demo_return) + torch.mean(sample_return)
+
+        self.optimizer.zero_grad()
+        loss.backward()
+        self.optimizer.step()
+
+        train_reward_log = {
+            "Training reward loss": ptu.to_numpy(loss)
+        }
+        return train_reward_log

@@ -4,7 +4,7 @@ import time
 ############################################
 ############################################
 
-def sample_trajectory(env, policy, render=False, render_mode=('rgb_array')):
+def sample_trajectory(env, policy, render=False, render_mode=('rgb_array'), expert=False):
 
     # initialize env for the beginning of a new rollout
     ob = env.reset() 
@@ -27,7 +27,10 @@ def sample_trajectory(env, policy, render=False, render_mode=('rgb_array')):
 
         # use the most recent ob to decide what to do
         obs.append(ob)
-        ac = policy.get_action(ob) 
+        if expert:
+            ac, _ = policy.predict(obs)
+        else:
+            ac = policy.get_action(ob) 
         ac = ac[0]
         acs.append(ac)
 
@@ -51,18 +54,20 @@ def sample_trajectory(env, policy, render=False, render_mode=('rgb_array')):
 
     return Path(obs, image_obs, acs, rewards, next_obs, terminals)
 
-def sample_trajectories(env, policy, batch_size, render=False, render_mode=('rgb_array')):
+def sample_trajectories(env, policy, batch_size, render=False, render_mode=('rgb_array'), expert=False):
     """
-    Collect rollouts until we have collected batch_size steps.
+    Collect rollouts until we have collected batch_size trajectories
     """
-    steps = 0
     paths = []
-    while steps < batch_size:
-        path = sample_trajectory(env, policy)
+    for _ in range(batch_size):
+        path = sample_trajectory(
+            env, policy, render=render, 
+            render_mode=render_mode, expert=expert
+        )
         paths.append(path)
-        steps += get_pathlength(path)
+    return paths
 
-    return paths, steps
+
 
 ############################################
 ############################################
@@ -84,5 +89,28 @@ def Path(obs, image_obs, acs, rewards, next_obs, terminals):
 ############################################
 ############################################
 
+def convert_listofrollouts(paths):
+    """
+        Take a list of rollout dictionaries
+        and return separate arrays,
+        where each array is a concatenation of that array from across the rollouts
+    """
+    observations = np.concatenate([path["observation"] for path in paths])
+    actions = np.concatenate([path["action"] for path in paths])
+    next_observations = np.concatenate([path["next_observation"] for path in paths])
+    terminals = np.concatenate([path["terminal"] for path in paths])
+    concatenated_rewards = np.concatenate([path["reward"] for path in paths])
+    unconcatenated_rewards = [path["reward"] for path in paths]
+    return observations, actions, next_observations, terminals, concatenated_rewards, unconcatenated_rewards
+
+############################################
+############################################
+
 def get_pathlength(path):
     return len(path["reward"])
+
+def normalize(data, mean, std, eps=1e-8):
+    return (data-mean)/(std+eps)
+
+def unnormalize(data, mean, std):
+    return data*std+mean

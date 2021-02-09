@@ -65,24 +65,21 @@ class GCL_Trainer():
         self.agent = agent_class(self.env, self.params['agent_params'])
 
     def run_training_loop(self, n_iter, collect_policy=None,
-                          initial_expert_data=None,
-                          expert_policy=None):
+                          expert_data=None, expert_policy=None):
         """
         :param n_iter:  number of iterations
         :param collect_policy: q_k
-        :param initial_expert_data: D_demo
+        :param expert_data: D_demo
         :param expert_policy:
         """
 
         # init vars at beginning of training
         self.total_envsteps = 0
         self.start_time = time.time()
-
-        # Algorithm 1: Guided cost learning
-        paths = self.collect_demo_trajectories(initial_expert_data, expert_policy)
-
+        
         # add demonstrations to replay buffer
-        self.agent.add_to_demo_buffer(demo_paths)
+        demo_paths = self.collect_demo_trajectories(expert_data, expert_policy)
+        self.agent.add_to_buffer(demo_paths, demo=True)
 
         for itr in range(n_iter):
             print("\n********** Iteration {} ************".format(itr))
@@ -90,77 +87,88 @@ class GCL_Trainer():
             # TODO: set up logging
 
             # Generate samples D_traj from current trajectory distribution q_k
-            paths, envsteps, train_video_paths = self.collect_training_trajectories(
+            paths, train_video_paths = self.collect_training_trajectories(
                 collect_policy, self.params['batch_size']
             )
-            self.total_envsteps += envsteps
 
             # Append samples D_traj to D_samp
-            self.agent.add_to_replay_buffer(paths)
+            self.agent.add_to_buffer(paths)
 
             # Use D_{samp} to update cost c_{\theta}
-            self.update_cost()
+            self.train_reward()
 
             # Update q_k(\tau) using D_{traj} and use Guided policy search to obtain q_{k+1}(\tau)
-            self.train_agent()
+            self.train_policy()
 
-    def collect_demo_trajectories(self, initial_expert_data, expert_policy):
+    def collect_demo_trajectories(self, expert_data, expert_policy):
         """
-        :param initial_expert_data:  relative path to saved 
+        :param expert_data:  relative path to saved 
         :param expert_policy:  relative path to saved expert policy
         :return:
             paths: a list of trajectories
         """
         # Load expert policy or expert demonstrations D_demo
-        if initial_expert_data:
+        if expert_data:
             print('\nLoading saved demonstrations...')
-            with open(initial_expert_data, 'rb') as f:
+            with open(expert_data, 'rb') as f:
                 demo_paths = pickle.load(f)
             # TODO: sample self.params['demo_size'] from demo_paths
         elif expert_policy:
             # TODO: make this to accept other expert policies
             from stable_baselines3 import PPO
-            expert_policy = PPO.load("expert_policy")
+            expert_policy = PPO.load(expert_policy)
             print('\nRunning expert policy to collect demonstrations...')
-            demo_paths, envsteps = utils.sample_trajectories(self.env, expert_policy, self.params['demo_size'])
+            demo_paths = utils.sample_trajectories(
+                self.env, 
+                expert_policy, 
+                batch_size=self.params['demo_size'], 
+                expert=True
+            )
         else:
             raise ValueError('Please provide either expert demonstrations or expert policy')
-        return paths
+        return demo_paths
 
     def collect_training_trajectories(self, collect_policy, batch_size):
         """
         :param collect_policy:  the current policy which we use to collect data
-        :param batch_size:  the number of transitions to collect
+        :param batch_size:  the number of trajectories to collect
         :return:
             paths: a list trajectories
-            envsteps_this_batch: the sum over the numbers of environment steps in paths
             train_video_paths: paths which also contain videos for visualization purposes
         """
         print("\nCollecting sample trajectories to be used for training ...")
-        paths, envsteps = utils.sample_trajectories(self.env, collect_policy, batch_size)
+        paths = utils.sample_trajectories(self.env, collect_policy, batch_size)
 
         # TODO: add logging and training videos
         train_video_paths = None
-        return paths, envsteps, train_video_paths
+        return paths, train_video_paths
 
 
-    def update_cost(self):
-
-        print("\nUpdating cost parameters")
-        # Algorithm 2: Nonlinear IOC with stochastic gradients 
-        for k in range(K):
+    def train_reward(self):
+        """
+        Algorithm 2: Nonlinear IOC with stochastic gradients 
+        """
+        print("\nUpdating reward parameters")
+        reward_logs = []
+        for k in range(self.params['num_reward_train_steps_per_iter']):
             # Sample demonstration batch D^_{demo} \subset D_{demo}
             # Sample background batch D^_{samp} \subset D_{sample}
-            demo_batch = self.agent.sample_demo(self.params['train_demo_batch_size'])
-            sample_batch = self.agent.sample(self.params['train_batch_size'])
-            training_batch = [demo_batch, sample_batch]
+            demo_batch = self.agent.sample_rollouts(self.params['train_demo_batch_size'], demo=True)
+            sample_batch = self.agent.sample_rollouts(self.params['train_sample_batch_size'])
 
-            # Use the sampled data to train the cost function
-            train_cost_log = self.agent.train_cost(training_batch)
+            # Use the sampled data to train the reward function
+            reward_log = self.agent.train_reward(demo_batch, sample_batch)
+            reward_logs.append(reward_log)
+        return reward_logs
 
-    def train_agent(self):
+    def train_policy(self):
         """
         Guided policy search or PG
         """
-        pass
-
+        print('\nTraining agent using sampled data from replay buffer...')
+        train_logs = []
+        for train_step in range(self.params['num_policy_train_steps_per_iter']):
+            ob_batch, ac_batch, re_batch, next_ob_batch, terminal_batch = self.agent.sample(self.params['train_batch_size'])
+            train_log = self.agent.train_policy(ob_batch, ac_batch, re_batch, next_ob_batch, terminal_batch)
+            train_logs.append(train_log)
+        return train_logs

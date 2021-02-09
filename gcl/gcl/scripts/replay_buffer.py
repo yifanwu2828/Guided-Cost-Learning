@@ -1,8 +1,9 @@
 import utils
+import numpy as np 
 
 class ReplayBuffer(object):
 
-    def __init__(self, max_size=1000000):
+    def __init__(self, max_size=100000):
 
         self.max_size = max_size
         self.paths = []
@@ -20,7 +21,7 @@ class ReplayBuffer(object):
             self.paths.append(path)
 
         # convert new rollouts into their component arrays, and append them onto our arrays
-        observations, actions, next_observations, terminals, concatenated_rews, unconcatenated_rews = convert_listofrollouts(paths)
+        observations, actions, next_observations, terminals, concatenated_rews, unconcatenated_rews = utils.convert_listofrollouts(paths)
 
         if noised:
             observations = add_noise(observations)
@@ -50,19 +51,22 @@ class ReplayBuffer(object):
             else:
                 self.unconcatenated_rews.append(unconcatenated_rews)  # TODO keep only latest max_size around
 
+    def add_rollouts(self, paths):
+        self.paths.extend(paths)
+        self.paths = self.paths[-self.max_size:]
+
     ########################################
     ########################################
 
     def sample_random_rollouts(self, num_rollouts):
         rand_indices = np.random.permutation(len(self.paths))[:num_rollouts]
-        return self.paths[rand_indices]
+        return np.array(self.paths)[rand_indices].tolist()
 
     def sample_recent_rollouts(self, num_rollouts=1):
-        return self.paths[-num_rollouts:]
+        return np.array(self.paths)[-num_rollouts:].tolist()
 
     ########################################
     ########################################
-
     def sample_random_data(self, batch_size):
 
         assert self.obs.shape[0] == self.acs.shape[0] == self.concatenated_rews.shape[0] == self.next_obs.shape[0] == self.terminals.shape[0]
@@ -81,7 +85,7 @@ class ReplayBuffer(object):
                 recent_rollout = self.paths[index]
                 index -=1
                 num_recent_rollouts_to_return +=1
-                num_datapoints_so_far += get_pathlength(recent_rollout)
+                num_datapoints_so_far += utils.get_pathlength(recent_rollout)
             rollouts_to_return = self.paths[-num_recent_rollouts_to_return:]
-            observations, actions, next_observations, terminals, concatenated_rews, unconcatenated_rews = convert_listofrollouts(rollouts_to_return)
+            observations, actions, next_observations, terminals, concatenated_rews, unconcatenated_rews = utils.convert_listofrollouts(rollouts_to_return)
             return observations, actions, unconcatenated_rews, next_observations, terminals
