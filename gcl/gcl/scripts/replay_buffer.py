@@ -9,27 +9,25 @@ class ReplayBuffer(object):
         self.paths = []
         self.obs = None
         self.acs = None
+        self.log_probs = None
         self.concatenated_rews = None
         self.unconcatenated_rews = None
         self.next_obs = None
         self.terminals = None
 
-    def add_rollouts(self, paths, noised=False):
 
+    def add_rollouts(self, paths):
         # add new rollouts into our list of rollouts
-        for path in paths:
-            self.paths.append(path)
+        self.paths.extend(paths)
+        self.paths = self.paths[-self.max_size:]
 
         # convert new rollouts into their component arrays, and append them onto our arrays
-        observations, actions, next_observations, terminals, concatenated_rews, unconcatenated_rews = utils.convert_listofrollouts(paths)
-
-        if noised:
-            observations = add_noise(observations)
-            next_observations = add_noise(next_observations)
+        observations, actions, log_probs, next_observations, terminals, concatenated_rews, unconcatenated_rews = utils.convert_listofrollouts(paths)
 
         if self.obs is None:
             self.obs = observations[-self.max_size:]
             self.acs = actions[-self.max_size:]
+            self.log_probs = log_probs[-self.max_size:]
             self.next_obs = next_observations[-self.max_size:]
             self.terminals = terminals[-self.max_size:]
             self.concatenated_rews = concatenated_rews[-self.max_size:]
@@ -37,6 +35,7 @@ class ReplayBuffer(object):
         else:
             self.obs = np.concatenate([self.obs, observations])[-self.max_size:]
             self.acs = np.concatenate([self.acs, actions])[-self.max_size:]
+            self.log_probs = np.concatenate([self.log_probs, log_probs])[-self.max_size:]
             self.next_obs = np.concatenate(
                 [self.next_obs, next_observations]
             )[-self.max_size:]
@@ -51,16 +50,12 @@ class ReplayBuffer(object):
             else:
                 self.unconcatenated_rews.append(unconcatenated_rews)  # TODO keep only latest max_size around
 
-    def add_rollouts(self, paths):
-        self.paths.extend(paths)
-        self.paths = self.paths[-self.max_size:]
-
     ########################################
     ########################################
 
     def sample_random_rollouts(self, num_rollouts):
         rand_indices = np.random.permutation(len(self.paths))[:num_rollouts]
-        return np.array(self.paths)[rand_indices].tolist()
+        return np.array(self.paths)[rand_indices]
 
     def sample_recent_rollouts(self, num_rollouts=1):
         return np.array(self.paths)[-num_rollouts:].tolist()
@@ -87,5 +82,5 @@ class ReplayBuffer(object):
                 num_recent_rollouts_to_return +=1
                 num_datapoints_so_far += utils.get_pathlength(recent_rollout)
             rollouts_to_return = self.paths[-num_recent_rollouts_to_return:]
-            observations, actions, next_observations, terminals, concatenated_rews, unconcatenated_rews = utils.convert_listofrollouts(rollouts_to_return)
+            observations, actions, log_probs, next_observations, terminals, concatenated_rews, unconcatenated_rews = utils.convert_listofrollouts(rollouts_to_return)
             return observations, actions, unconcatenated_rews, next_observations, terminals

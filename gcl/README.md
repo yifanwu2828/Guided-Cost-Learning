@@ -2,10 +2,12 @@
 
 # TODO
 - [x] Set up 2D navigation environment
-- [ ] Add rgb_array render mode in 2D navigation environment
+- [x] Add rgb_array render mode in 2D navigation environment
 - [x] Set up RL agent (PPO, SAC) as expert policy
-- [ ] Implement GCL
- 
+- [x] Implement GCL
+- [ ] Add visualization for learned reward during training
+- [ ] Check tensorboard video logger for visualizing reward map
+- [ ] Clear TODOs in code 
 
 # Installation
 1. Install Stable baselines 3

@@ -10,7 +10,7 @@ def sample_trajectory(env, policy, render=False, render_mode=('rgb_array'), expe
     ob = env.reset() 
 
     # init vars
-    obs, acs, rewards, next_obs, terminals, image_obs = [], [], [], [], [], []
+    obs, acs, log_probs, rewards, next_obs, terminals, image_obs = [], [], [], [], [], [], []
     steps = 0
     while True:
 
@@ -29,10 +29,12 @@ def sample_trajectory(env, policy, render=False, render_mode=('rgb_array'), expe
         obs.append(ob)
         if expert:
             ac, _ = policy.predict(obs)
+            log_prob = None
         else:
-            ac = policy.get_action(ob) 
+            ac, log_prob = policy.get_action(ob) 
         ac = ac[0]
         acs.append(ac)
+        log_probs.append(log_prob)
 
         # take that action and record results
         ob, rew, done, _ = env.step(ac)
@@ -52,27 +54,28 @@ def sample_trajectory(env, policy, render=False, render_mode=('rgb_array'), expe
         if rollout_done:
             break
 
-    return Path(obs, image_obs, acs, rewards, next_obs, terminals)
+    return Path(obs, image_obs, acs, log_probs, rewards, next_obs, terminals)
 
 def sample_trajectories(env, policy, batch_size, render=False, render_mode=('rgb_array'), expert=False):
     """
-    Collect rollouts until we have collected batch_size trajectories
+    Sample rollouts until we have collected batch_size trajectories
     """
     paths = []
+    timesteps_this_batch = 0
     for _ in range(batch_size):
         path = sample_trajectory(
             env, policy, render=render, 
             render_mode=render_mode, expert=expert
         )
         paths.append(path)
-    return paths
-
+        timesteps_this_batch += get_pathlength(path)
+    return paths, timesteps_this_batch
 
 
 ############################################
 ############################################
 
-def Path(obs, image_obs, acs, rewards, next_obs, terminals):
+def Path(obs, image_obs, acs, log_probs, rewards, next_obs, terminals):
     """
         Take info (separate arrays) from a single rollout
         and return it in a single dictionary
@@ -83,6 +86,7 @@ def Path(obs, image_obs, acs, rewards, next_obs, terminals):
             "image_obs" : np.array(image_obs, dtype=np.uint8),
             "reward" : np.array(rewards, dtype=np.float32),
             "action" : np.array(acs, dtype=np.float32),
+            "log_prob": np.array(log_probs, dtype=np.float32),
             "next_observation": np.array(next_obs, dtype=np.float32),
             "terminal": np.array(terminals, dtype=np.float32)}
 
@@ -97,11 +101,12 @@ def convert_listofrollouts(paths):
     """
     observations = np.concatenate([path["observation"] for path in paths])
     actions = np.concatenate([path["action"] for path in paths])
+    log_probs = np.concatenate([path["log_prob"] for path in paths])
     next_observations = np.concatenate([path["next_observation"] for path in paths])
     terminals = np.concatenate([path["terminal"] for path in paths])
     concatenated_rewards = np.concatenate([path["reward"] for path in paths])
     unconcatenated_rewards = [path["reward"] for path in paths]
-    return observations, actions, next_observations, terminals, concatenated_rewards, unconcatenated_rewards
+    return observations, actions, log_probs, next_observations, terminals, concatenated_rewards, unconcatenated_rewards
 
 ############################################
 ############################################

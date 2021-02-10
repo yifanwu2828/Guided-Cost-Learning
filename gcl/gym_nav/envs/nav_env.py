@@ -10,7 +10,7 @@ class NavEnv(gym.Env):
     2D continuous box environment for navigation
     """
 
-    metadata = {'render.modes': ['human']}
+    metadata = {'render.modes': ['human', 'rgb_array']}
 
     def __init__(self, size=1, seed=1337):
 
@@ -139,18 +139,20 @@ class NavEnv(gym.Env):
         Visualize the trajectory on the reward map
         """
 
-
         if mode == 'human' and not self.window:
             import gym_nav.window
             self.window = gym_nav.window.Window('gym_nav')
             self.window.show(block=False)
 
         img = self.preprocess_obs(self.pos)
+
         if mode == 'human':
             self.window.show_img(img)
             self.window.set_caption(self.mission)
 
-#        return img
+        elif mode == 'rgb_array':
+            return img 
+
 
     def close(self):
         if self.window:

@@ -14,10 +14,6 @@ class GCL_Agent(BaseAgent):
         self.env = env
         self.agent_params = agent_params
         self.gamma = self.agent_params['gamma']
-        self.standardize_advantages = self.agent_params['standardize_advantages']
-        self.nn_baseline = self.agent_params['nn_baseline']
-        self.reward_to_go = self.agent_params['reward_to_go']
-
 
         # actor/policy
         self.actor = MLPPolicyPG(
@@ -25,8 +21,7 @@ class GCL_Agent(BaseAgent):
             self.agent_params['ob_dim'],
             self.agent_params['n_layers'],
             self.agent_params['size'],
-            learning_rate=self.agent_params['learning_rate'],
-            nn_baseline=self.agent_params['nn_baseline']
+            learning_rate=self.agent_params['learning_rate']
         )
         # TODO: Add Guided Policy Search (GPS) policy
 
@@ -52,7 +47,11 @@ class GCL_Agent(BaseAgent):
         demo_acs = np.array([demo['action'] for demo in demo_batch])
         sample_obs = np.array([sample['observation'] for sample in sample_batch])
         sample_acs = np.array([sample['action'] for sample in sample_batch])
-        train_reward_log = self.reward.update(demo_obs, demo_acs, sample_obs, sample_acs)
+        sample_log_probs = np.array([sample['log_prob'] for sample in sample_batch])
+
+        reward_log = self.reward.update(demo_obs, demo_acs, sample_obs, sample_acs, sample_log_probs)
+        
+        return reward_log
 
     def train_policy(self, observations, actions, rewards_list, next_observations, terminals):
         """
@@ -73,58 +72,39 @@ class GCL_Agent(BaseAgent):
         return train_log
 
     def calculate_q_vals(self, rewards_list):
-
         """
-            Monte Carlo estimation of the Q function.
+        Monte Carlo estimation of the Q function.
         """
-
-        # Case 1: trajectory-based PG
-        # Estimate Q^{pi}(s_t, a_t) by the total discounted reward summed over entire trajectory
-        if not self.reward_to_go:
-
-            # For each point (s_t, a_t), associate its value as being the discounted sum of rewards over the full trajectory
-            # In other words: value of (s_t, a_t) = sum_{t'=0}^T gamma^t' r_{t'}
-            q_values = np.concatenate([self._discounted_return(r) for r in rewards_list])
-
-        # Case 2: reward-to-go PG
         # Estimate Q^{pi}(s_t, a_t) by the discounted sum of rewards starting from t
-        else:
-
-            # For each point (s_t, a_t), associate its value as being the discounted sum of rewards over the full trajectory
-            # In other words: value of (s_t, a_t) = sum_{t'=t}^T gamma^(t'-t) * r_{t'}
-            q_values = np.concatenate([self._discounted_cumsum(r) for r in rewards_list])
+        # For each point (s_t, a_t), associate its value as being the discounted sum of rewards over the full trajectory
+        # In other words: value of (s_t, a_t) = sum_{t'=t}^T gamma^(t'-t) * r_{t'}
+        q_values = np.concatenate([self._discounted_cumsum(r) for r in rewards_list])
 
         return q_values
 
     def estimate_advantage(self, obs, q_values):
-
         """
-            Computes advantages by (possibly) subtracting a baseline from the estimated Q values
+        Computes advantages by subtracting a baseline from the estimated Q values
         """
-
         # Estimate the advantage when nn_baseline is True,
         # by querying the neural network that you're using to learn the baseline
-        if self.nn_baseline:
-            baselines_unnormalized = self.actor.run_baseline_prediction(obs)
-            ## ensure that the baseline and q_values have the same dimensionality
-            ## to prevent silent broadcasting errors
-            assert baselines_unnormalized.ndim == q_values.ndim
-            ## baseline was trained with standardized q_values, so ensure that the predictions
-            ## have the same mean and standard deviation as the current batch of q_values
-            baselines = baselines_unnormalized * np.std(q_values) + np.mean(q_values)
-            ## TODO: compute advantage estimates using q_values and baselines
-            advantages = q_values - baselines
+        baselines_unnormalized = self.actor.run_baseline_prediction(obs)
 
-        # Else, just set the advantage to [Q]
-        else:
-            advantages = q_values.copy()
+        ## ensure that the baseline and q_values have the same dimensionality
+        ## to prevent silent broadcasting errors
+        assert baselines_unnormalized.ndim == q_values.ndim
+
+        ## baseline was trained with standardized q_values, so ensure that the predictions
+        ## have the same mean and standard deviation as the current batch of q_values
+        baselines = baselines_unnormalized * np.std(q_values) + np.mean(q_values)
+        ## TODO: compute advantage estimates using q_values and baselines
+        advantages = q_values - baselines
 
         # Normalize the resulting advantages
-        if self.standardize_advantages:
-            ## TODO: standardize the advantages to have a mean of zero
-            ## and a standard deviation of one
-            ## HINT: there is a `normalize` function in `infrastructure.utils`
-            advantages = utils.normalize(advantages, np.mean(advantages), np.std(advantages))
+        ## TODO: standardize the advantages to have a mean of zero
+        ## and a standard deviation of one
+        ## HINT: there is a `normalize` function in `infrastructure.utils`
+        advantages = utils.normalize(advantages, np.mean(advantages), np.std(advantages))
 
         return advantages
 
@@ -150,29 +130,14 @@ class GCL_Agent(BaseAgent):
             return self.sample_buffer.sample_random_rollouts(batch_size)
 
     def sample(self, batch_size):
+        """
+        Sample transition steps of size batch_size
+        """
         return self.demo_buffer.sample_recent_data(batch_size, concat_rew=False)    
 
     #####################################################
     ################## HELPER FUNCTIONS #################
     #####################################################
-
-    def _discounted_return(self, rewards):
-        """
-            Helper function
-
-            Input: list of rewards {r_0, r_1, ..., r_t', ... r_T} from a single rollout of length T
-
-            Output: list where each index t contains sum_{t'=0}^T gamma^t' r_{t'}
-        """
-
-        # TODO: create list_of_discounted_returns
-        # Hint: note that all entries of this output are equivalent
-            # because each sum is from 0 to T (and doesnt involve t)
-        s = 0
-        for t, r in enumerate(rewards):
-            s += (self.gamma ** t) * r
-        list_of_discounted_returns = [s] * len(rewards)
-        return list_of_discounted_returns
 
     def _discounted_cumsum(self, rewards):
         """
