@@ -68,6 +68,7 @@ def sample_trajectories(env, policy, batch_size, render=False, render_mode=('rgb
             render_mode=render_mode, expert=expert
         )
         paths.append(path)
+        # get_pathlength() to count the timesteps collected in each path
         timesteps_this_batch += get_pathlength(path)
     return paths, timesteps_this_batch
 

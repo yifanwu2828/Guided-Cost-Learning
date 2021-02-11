@@ -1,39 +1,50 @@
+import os
+import time
+from typing import Callable
+
 import gym
 import gym_nav
+
+import numpy as np
+import matplotlib.pyplot as plt
+
 from stable_baselines3 import A2C
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.env_checker import check_env
 from stable_baselines3.common.evaluation import evaluate_policy
 
-def custom_env_check(envName):
+def evaluate(model, num_episodes=100, env_id = 'NavEnv-v0',):
     """
-    check custom_env and try a random agent on custom environment
-    :param envName
-    :type str
+    Evaluate a RL agent
+    :param model: (BaseRLModel object) the RL Agent
+    :param num_episodes: (int) number of episodes to evaluate it
+    :return: (float) Mean reward for the last num_episodes
     """
-    assert isinstance(envName,str)
-    assert len(envName) > 0
-    env = gym.make(envName)
-    check_env (env, warn=True, skip_render_check=True)
-    obs = env.reset()
-    n_steps = 1000
-    for _ in range(n_steps):
-        # Random action
-        action = env.action_space.sample()
-        obs, reward, done, info = env.step(action)
-        # env.render()
-        if done:
-            obs = env.reset()
-
+    # This function will only work for a single Environment
+    eval_env = gym.make(env_id)
+    all_episode_rewards = []
+    for _ in range(num_episodes):
+        episode_rewards = []
+        done = False
+        obs = eval_env.reset()
+        while not done:
+            action, _states = model.predict(obs, deterministic=True)
+            # here, action, rewards and dones are arrays
+            # because we are using vectorized env
+            obs, reward, done, info = eval_env.step(action)
+            episode_rewards.append(reward)
+            # env.render()
+        all_episode_rewards.append(sum(episode_rewards))
+    eval_env.close()
+    mean_episode_reward = np.mean(all_episode_rewards)
+    max_episode_reward = np.max(all_episode_rewards)
+    std_episode_reward = np.std(all_episode_rewards)
+    print(f"Mean_reward:{mean_episode_reward:.3f} +/- {std_episode_reward:.3f} in {num_episodes} episodes")
+    return mean_episode_reward, std_episode_reward
 
 
 def main():
-    pass
 
-if __name__ == '__main__':
-    pass
-    # custo,env check
-    custom_env_check(envName='NavEnv-v0')
     '''
            Recent algorithms (PPO, SAC, TD3) normally require little hyperparameter tuning,
            however, don’t expect the default ones to work on any environment.
@@ -47,27 +58,43 @@ if __name__ == '__main__':
                Take a look at PPO, TRPO or A2C.
                Again, don’t forget to take the hyperparameters from the RL zoo
            '''
-    # tried PPO, SAC. Remain A2C, DDPG, HER, TD3
-    env = gym.make('CartPole-v1')
-    env.seed(0)
+    # Multiprocess :PPO, SAC,A2C
+    # #Remain DDPG, HER, TD3
 
-    model = A2C('MlpPolicy', env, verbose=1)
-    model.learn(total_timesteps=10000)
 
-    # model.save()
-    # del model
-    # model = A2C.load()
 
-    mean_reward, std_reward = evaluate_policy(model, model.get_env(), n_eval_episodes=10)
+if __name__ == '__main__':
+    # Create log dir
+    log_dir = "tmp/"
+    os.makedirs(log_dir, exist_ok=True)
 
-    obs = env.reset()
-    for i in range(1000):
-        '''
-        As some policy are stochastic by default (e.g. A2C or PPO), you should also try to set deterministic=True
-        when calling the .predict() method, this frequently leads to better performance.
-        '''
-        action, _state = model.predict(obs, deterministic=True)
-        obs, reward, done, info = env.step(action)
-        env.render()
-        if done:
-            obs = env.reset()
+    # All actions lie in [-1.0, 1.0]
+    # Parallel environments for multiprocessing polocy : PPO SAC, A2C
+    env_id = 'NavEnv-v0'
+    env = make_vec_env(env_id=env_id, n_envs=4, seed=0)
+    # env = gym.make('NavEnv-v0')
+    # check_env (env, warn=True, skip_render_check=True)
+    print("Observation space:", env.observation_space)
+    print("bs_space Shape:", env.observation_space.shape)
+    print("Action space:", env.action_space)
+    print("Act_space Shape:", env.action_space.shape)
+    # A2C lr=1e-3, tts=2e5,normalize_advantage=True
+    model = A2C('MlpPolicy', env, learning_rate=1e-3 , verbose=1,normalize_advantage=True)
+    start_time = time.time()
+    # Train the agent and evaluate it
+    model.learn(total_timesteps=2e5, log_interval=200)
+    print("Finish in {} seconds".format(time.time()-start_time))
+
+    # Create save dir
+    save_dir = "./tmp/demo_agent/"
+    os.makedirs(save_dir, exist_ok=True)
+    zip_name = 'A2C_lr1e-3_tts2e5'
+    # The model will be saved under ZIP_NAME.zip
+    model.save(save_dir + zip_name)
+    del model
+    loaded_model = A2C.load(save_dir + zip_name)
+    # mean_reward, std_reward = evaluate_policy(loaded_model, model.get_env(), n_eval_episodes=100)
+    mean_reward, std_reward = evaluate(loaded_model, num_episodes=100, env_id='NavEnv-v0')
+
+
+

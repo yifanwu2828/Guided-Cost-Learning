@@ -6,9 +6,11 @@ from collections import OrderedDict
 import gym
 import gym_nav
 import numpy as np 
+np.seterr(all='raise')
 import torch
+torch.autograd.set_detect_anomaly(True)
 
-import pytorch_util as ptu 
+import pytorch_util as ptu
 import utils
 from logger import Logger
 
@@ -97,7 +99,7 @@ class GCL_Trainer():
         for itr in range(n_iter):
             print("\n********** Iteration {} ************".format(itr))
 
-            # TODO: set up logging
+
             # decide if videos should be rendered/logged at this iteration
             if itr % self.params['video_log_freq'] == 0 and self.params['video_log_freq'] != -1:
                 self.log_video = True
@@ -141,16 +143,24 @@ class GCL_Trainer():
         :param expert_data:  relative path to saved 
         :param expert_policy:  relative path to saved expert policy
         :return:
-            paths: a list of trajectories
+            paths: a list of trajectories with len = self.params['demo_size']
+                    each trajectory is a dict {obs, image_obs, acs, log_probs, rewards, next_obs, terminals}
         """
         # Load expert policy or expert demonstrations D_demo
         if expert_data:
             print('\nLoading saved demonstrations...')
             with open(expert_data, 'rb') as f:
                 demo_paths = pickle.load(f)
-            # TODO: sample self.params['demo_size'] from demo_paths
+            # TODO: sample self.params['demo_size'] from demo_paths -- implemented
+            return demo_paths[: self.params['demo_size']]
+
         elif expert_policy:
             # TODO: make this to accept other expert policies
+            # TODO: two kind of policy multiprocess and not
+            '''use a dict with key = policy_name and value = policy_class or an indicator
+                then import based on the indicator
+                Do 3 example first, train and save the parameter
+            '''
             from stable_baselines3 import PPO
             expert_policy = PPO.load(expert_policy)
             print('\nRunning expert policy to collect demonstrations...')
@@ -179,7 +189,7 @@ class GCL_Trainer():
         train_video_paths = None
         if self.log_video:
             print('\nCollecting train rollouts to be used for saving videos...')
-            ## TODO look in utils and implement sample_n_trajectories
+            # TODO look in utils and implement sample_n_trajectories
             train_video_paths, _ = utils.sample_trajectories(self.env, collect_policy, MAX_NVIDEO, render=True)
         return paths, envsteps_this_batch, train_video_paths
 
