@@ -124,6 +124,7 @@ def dummyVecEnv_training():
     mean_reward, std_reward = evaluate(loaded_model, num_episodes=200, env_id = 'NavEnv-v0',)
 
 if __name__ == '__main__':
+
     save_dir = "./tmp/demo_agent/"
     print("%%%%%%%%%%%% A2C %%%%%%%%%%%%")
     loaded_model_A2C = A2C.load(save_dir + "A2C_lr1e-3_tts2e5_normAdv")
