@@ -19,7 +19,7 @@ class Logger:
         self._summ_writer.add_scalars('{}_{}'.format(group_name, phase), scalar_dict, step)
 
     def log_image(self, image, name, step):
-        assert(len(image.shape) == 3)  # [C, H, W]
+        assert(len(image.shape) == 3)  # [C=channel, H=height, W=width], Default is (3,H,W)
         self._summ_writer.add_image('{}'.format(name), image, step)
 
     def log_video(self, video_frames, name, step, fps=10):
