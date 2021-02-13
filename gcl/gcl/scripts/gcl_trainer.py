@@ -19,7 +19,7 @@ MAX_NVIDEO = 2
 MAX_VIDEO_LEN = 40 # we overwrite this in the code below
 
 class GCL_Trainer():
-
+    """ GCL_Trainer """
     def __init__(self, params):
 
         #############
@@ -34,6 +34,8 @@ class GCL_Trainer():
         seed = self.params['seed']
         np.random.seed(seed)
         torch.manual_seed(seed)
+
+        # init gpu
         ptu.init_gpu(
             use_gpu=not self.params['no_gpu'],
             gpu_id=self.params['which_gpu']
@@ -57,6 +59,7 @@ class GCL_Trainer():
 
         # Observation and action sizes
         ob_dim = self.env.observation_space.shape if img else self.env.observation_space.shape[0]
+        # assume continous action space
         ac_dim = self.env.action_space.shape[0]
         self.params['agent_params']['ac_dim'] = ac_dim
         self.params['agent_params']['ob_dim'] = ob_dim
@@ -99,7 +102,6 @@ class GCL_Trainer():
         for itr in range(n_iter):
             print("\n********** Iteration {} ************".format(itr))
 
-
             # decide if videos should be rendered/logged at this iteration
             if itr % self.params['video_log_freq'] == 0 and self.params['video_log_freq'] != -1:
                 self.log_video = True
@@ -114,7 +116,7 @@ class GCL_Trainer():
             else:
                 self.logmetrics = False
 
-            # Generate samples D_traj from current trajectory distribution q_k
+            # Generate samples D_traj from current trajectory distribution q_k (collect_policy)
             paths, envsteps_this_batch, train_video_paths = self.collect_training_trajectories(
                 collect_policy, self.params['batch_size']
             )
@@ -180,6 +182,7 @@ class GCL_Trainer():
         :param batch_size:  the number of trajectories to collect
         :return:
             paths: a list trajectories
+            envsteps_this_batch: the sum over the numbers of environment steps in paths
             train_video_paths: paths which also contain videos for visualization purposes
         """
         print("\nCollecting sample trajectories to be used for training...")
@@ -189,8 +192,12 @@ class GCL_Trainer():
         train_video_paths = None
         if self.log_video:
             print('\nCollecting train rollouts to be used for saving videos...')
-            # TODO look in utils and implement sample_n_trajectories
-            train_video_paths, _ = utils.sample_trajectories(self.env, collect_policy, MAX_NVIDEO, render=True)
+            # TODO look in utils and implement sample_n_trajectories ? I changed this
+            train_video_paths, _ = utils.sample_trajectories(self.env, collect_policy, MAX_NVIDEO, MAX_VIDEO_LEN, render=True)
+
+        if self.logmetrics:
+            pass # what should be log in this function
+
         return paths, envsteps_this_batch, train_video_paths
 
     def train_reward(self):
@@ -253,6 +260,7 @@ class GCL_Trainer():
         # save eval metrics
         # TODO: should parse the reward training loss and policy training loss
         # TODO: should add a visualization tool to check the trained reward function
+        # Path(obs, image_obs, acs, log_probs, rewards, next_obs, terminals)
         if self.logmetrics:
             # returns, for logging
             train_returns = [path["reward"].sum() for path in paths]
