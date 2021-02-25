@@ -1,5 +1,5 @@
 # Data
-*.zip
+
 data/
 
 # Vitualenv
@@ -38,3 +38,4 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
+

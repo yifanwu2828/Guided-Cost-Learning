@@ -1,0 +1,6 @@
+# Demo Agent Parameter (default if not mention)
+
+1. A2C lr=1e-3, totaltimestep=2e5, normlizeAdvantage=True 
+2. PP0 lr=3e-4, totaltimestep=2e5
+3. SAC lr=5e-4, totaltimestep=1e4
+
