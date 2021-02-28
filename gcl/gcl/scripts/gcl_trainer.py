@@ -5,9 +5,11 @@ from collections import OrderedDict
 
 import gym
 import gym_nav
-import numpy as np 
-np.seterr(all='raise')
+import numpy as np
+
 import torch
+# set overflow warning to error instead
+np.seterr(all='raise')
 torch.autograd.set_detect_anomaly(True)
 
 import pytorch_util as ptu
@@ -158,7 +160,7 @@ class GCL_Trainer():
 
         elif expert_policy:
             # TODO: make this to accept other expert policies
-            # TODO: two kind of policy multiprocess and not
+            # TODO: two kind of policy (multiprocess and single process ) -- implemented
             '''use a dict with key = policy_name and value = policy_class or an indicator
                 then import based on the indicator
                 Do 3 example first, train and save the parameter
@@ -196,7 +198,8 @@ class GCL_Trainer():
             train_video_paths, _ = utils.sample_trajectories(self.env, collect_policy, MAX_NVIDEO, MAX_VIDEO_LEN, render=True)
 
         if self.logmetrics:
-            pass # what should be log in this function
+            # TODO:# what should be log in this function
+            pass
 
         return paths, envsteps_this_batch, train_video_paths
 
@@ -208,11 +211,13 @@ class GCL_Trainer():
         reward_logs = []
         for k in range(self.params['num_reward_train_steps_per_iter']):
             # Sample demonstration batch D^_{demo} \subset D_{demo}
-            # Sample background batch D^_{samp} \subset D_{sample}
             demo_batch = self.agent.sample_rollouts(self.params['train_demo_batch_size'], demo=True)
+            # Sample background batch D^_{samp} \subset D_{sample}
             sample_batch = self.agent.sample_rollouts(self.params['train_sample_batch_size'])
 
             # Use the sampled data to train the reward function
+            # TODO: Esimate dL_{ioc}/dθ (θ) using batch D^_{demo} \subset D_{demo}
+            # TODO: Update parameters θ using gradient dL_{ioc}/dθ (θ)
             reward_log = self.agent.train_reward(demo_batch, sample_batch)
             reward_logs.append(reward_log)
         return reward_logs
