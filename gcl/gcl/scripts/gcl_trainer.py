@@ -190,13 +190,14 @@ class GCL_Trainer():
         print("\nCollecting sample trajectories to be used for training...")
         paths, envsteps_this_batch = utils.sample_trajectories(self.env, collect_policy, batch_size)
 
-        # TODO: add logging and training videos
+
         train_video_paths = None
         if self.log_video:
             print('\nCollecting train rollouts to be used for saving videos...')
-            # TODO look in utils and implement sample_n_trajectories ? I changed this
+            # TODO look in utils and implement sample_n_trajectories -- implemented
             train_video_paths, _ = utils.sample_trajectories(self.env, collect_policy, MAX_NVIDEO, MAX_VIDEO_LEN, render=True)
 
+        # TODO: add logging
         if self.logmetrics:
             # TODO:# what should be log in this function
             pass
@@ -216,7 +217,7 @@ class GCL_Trainer():
             sample_batch = self.agent.sample_rollouts(self.params['train_sample_batch_size'])
 
             # Use the sampled data to train the reward function
-            # TODO: Esimate dL_{ioc}/dθ (θ) using batch D^_{demo} \subset D_{demo}
+            # TODO: Esimate dL_{ioc}/dθ (θ) using batch D^_{demo} and D_{demo}
             # TODO: Update parameters θ using gradient dL_{ioc}/dθ (θ)
             reward_log = self.agent.train_reward(demo_batch, sample_batch)
             reward_logs.append(reward_log)
