@@ -153,6 +153,7 @@ class GCL_Trainer():
         # Load expert policy or expert demonstrations D_demo
         if expert_data:
             print('\nLoading saved demonstrations...')
+
             with open(expert_data, 'rb') as f:
                 demo_paths = pickle.load(f)
             # TODO: sample self.params['demo_size'] from demo_paths -- implemented
@@ -194,8 +195,8 @@ class GCL_Trainer():
         train_video_paths = None
         if self.log_video:
             print('\nCollecting train rollouts to be used for saving videos...')
-            # TODO look in utils and implement sample_n_trajectories -- implemented
-            train_video_paths, _ = utils.sample_trajectories(self.env, collect_policy, MAX_NVIDEO, MAX_VIDEO_LEN, render=True)
+            # TODO look in utils and implement sample_n_trajectories -- implemented change reder to True
+            train_video_paths, _ = utils.sample_trajectories(self.env, collect_policy, batch_size, render=False,)
 
         # TODO: add logging
         if self.logmetrics:
