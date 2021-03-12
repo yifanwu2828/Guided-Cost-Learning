@@ -1,9 +1,7 @@
 cloudpickle==1.6.0
 cycler==0.10.0
 future==0.18.2
--e git+https://github.com/yifanwu2828/Inverse-Reinforcement-Learning.git@607c2ef933f210e2ea9484aed9318616161b2263#egg=gcl&subdirectory=gcl
 gym==0.18.0
--e git+https://github.com/yifanwu2828/Inverse-Reinforcement-Learning.git@607c2ef933f210e2ea9484aed9318616161b2263#egg=gym_nav&subdirectory=gcl
 kiwisolver==1.3.1
 matplotlib==3.3.4
 numpy==1.20.1
@@ -20,7 +18,4 @@ scipy==1.6.0
 six==1.15.0
 stable-baselines3==0.10.0
 tensorboardX==2.1
-torch==1.7.1+cu101
-torchaudio==0.7.2
-torchvision==0.8.2+cu101
 typing-extensions==3.7.4.3
