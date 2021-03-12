@@ -2,6 +2,16 @@ import numpy as np
 import time
 
 ############################################
+def tic(message=None):
+    if message:
+        print(message)
+    else:
+        print("############ Time Start ############")
+    return time.time()
+
+
+def toc(t_start, name="Operation"):
+    print(f'############ {name} took: {(time.time() - t_start):.4f} sec. ############\n')
 ############################################
 
 def sample_trajectory(env, policy, render=False, render_mode=('rgb_array'), expert=False):
