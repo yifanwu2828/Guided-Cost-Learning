@@ -78,7 +78,6 @@ class MLPPolicy(BasePolicy, nn.Module, metaclass=abc.ABCMeta):
     # return more flexible objects, such as a
     # `torch.distributions.Distribution` object. It's up to you!
     def forward(self, observation: torch.FloatTensor):
-        # TODO: get this from hw1
         # Returns both the action distribution
         mean = self.mean_net(observation)
         std = self.logstd.exp()
@@ -128,13 +127,12 @@ class MLPPolicyPG(MLPPolicy):
         loss = -torch.mean(log_prob * advantages)
 
         # TODO: optimize `loss` using `self.optimizer`
-        # HINT: remember to `zero_grad` first
+
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
 
         ## TODO: normalize the q_values to have a mean of zero and a standard deviation of one
-        ## HINT: there is a `normalize` function in `infrastructure.utils`
         targets = utils.normalize(q_values, np.mean(q_values), np.std(q_values))
         targets = ptu.from_numpy(targets)
 
@@ -151,7 +149,6 @@ class MLPPolicyPG(MLPPolicy):
         baseline_loss = F.mse_loss(targets, baseline_predictions)
 
         # TODO: optimize `baseline_loss` using `self.baseline_optimizer`
-        # HINT: remember to `zero_grad` first
         self.baseline_optimizer.zero_grad()
         baseline_loss.backward()
         self.baseline_optimizer.step()
