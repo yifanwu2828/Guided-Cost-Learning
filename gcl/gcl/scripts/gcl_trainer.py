@@ -1,32 +1,35 @@
 import os
 import sys
 import time
+import pickle
 from collections import OrderedDict
 
 import gym
 import gym_nav
 import numpy as np
-
 import torch
-# set overflow warning to error instead
-np.seterr(all='raise')
-torch.autograd.set_detect_anomaly(True)
 from tqdm import tqdm
 
 import pytorch_util as ptu
 import utils
 from logger import Logger
 
+# set overflow warning to error instead
+np.seterr(all='raise')
+torch.autograd.set_detect_anomaly(True)
+
 # how many rollouts to save as videos to tensorboard
 MAX_NVIDEO = 2
-MAX_VIDEO_LEN = 40 # we overwrite this in the code below
+MAX_VIDEO_LEN = 40  # we overwrite this in the code below
+
 
 class GCL_Trainer():
     """ GCL_Trainer """
+
     def __init__(self, params):
 
         #############
-        ## INIT
+        # INIT
         #############
 
         # Get params, create logger
@@ -45,7 +48,7 @@ class GCL_Trainer():
         )
 
         #############
-        ## ENV
+        # ENV
         #############
 
         # Make the gym environment
@@ -68,14 +71,14 @@ class GCL_Trainer():
         self.params['agent_params']['ob_dim'] = ob_dim
 
         # simulation timestep, will be used for video saving
-#        if 'model' in dir(self.env):
-#            self.fps = 1/self.env.model.opt.timestep
-#        elif 'env_wrappers' in self.params:
-#            self.fps = 30 # This is not actually used when using the Monitor wrapper
-#        elif 'video.frames_per_second' in self.env.env.metadata.keys():
-#            self.fps = self.env.env.metadata['video.frames_per_second']
-#        else:
-#            self.fps = 10  
+        #        if 'model' in dir(self.env):
+        #            self.fps = 1/self.env.model.opt.timestep
+        #        elif 'env_wrappers' in self.params:
+        #            self.fps = 30 # This is not actually used when using the Monitor wrapper
+        #        elif 'video.frames_per_second' in self.env.env.metadata.keys():
+        #            self.fps = self.env.env.metadata['video.frames_per_second']
+        #        else:
+        #            self.fps = 10
         self.fps = 10
 
         #############
@@ -88,20 +91,22 @@ class GCL_Trainer():
     def run_training_loop(self, n_iter, collect_policy, eval_policy,
                           expert_data=None, expert_policy=None):
         """
-        :param n_iter:  number of iterations
+        :param n_iter: number of iterations
         :param collect_policy: q_k
         :param expert_data: D_demo
         :param expert_policy:
         """
-
         # init vars at beginning of training
         self.total_envsteps = 0
         self.start_time = time.time()
-        
+
         # add demonstrations to replay buffer
         demo_paths = self.collect_demo_trajectories(expert_data, expert_policy)
         self.agent.add_to_buffer(demo_paths, demo=True)
-
+        
+        train_log_lst = []
+        policy_log_lst = []
+        # 2.
         for itr in tqdm(range(n_iter)):
             print("\n")
             print("********** Iteration {} ************".format(itr))
@@ -120,21 +125,27 @@ class GCL_Trainer():
             else:
                 self.logmetrics = False
 
-            # Generate samples D_traj from current trajectory distribution q_k (collect_policy)
+            # 3. Generate samples D_traj from current trajectory distribution q_k (collect_policy)
             paths, envsteps_this_batch, train_video_paths = self.collect_training_trajectories(
                 collect_policy, self.params['batch_size']
             )
             self.total_envsteps += envsteps_this_batch
 
-            # Append samples D_traj to D_samp
+            # 4. Append samples D_traj to D_samp
             self.agent.add_to_buffer(paths)
 
-            # Use D_{samp} to update cost c_{\theta}
-            reward_logs = self.train_reward()
+            # 5. Use D_{samp} to update cost c_{\theta}
+            reward_logs = self.train_reward()  # Algorithm 2
+            for i in reward_logs:
+                value = float(i['Training reward loss'])
+                train_log_lst.append(value)
 
-            # Update q_k(\tau) using D_{traj} and using GPS or PG
+            # 6. Update q_k(\tau) using D_{traj} and using GPS or PG
             policy_logs = self.train_policy()
 
+            for j in policy_logs:
+                value = float(j['Training Loss'])
+                policy_log_lst.append(value)
             # log/save
             if self.log_video or self.logmetrics:
                 # perform logging
@@ -143,6 +154,7 @@ class GCL_Trainer():
 
                 if self.params['save_params']:
                     self.agent.save('{}/agent_itr_{}.pt'.format(self.params['logdir'], itr))
+        return train_log_lst, policy_log_lst
 
     def collect_demo_trajectories(self, expert_data, expert_policy):
         """
@@ -158,6 +170,7 @@ class GCL_Trainer():
             print('\nLoading saved demonstrations...')
 
             with open(expert_data, 'rb') as f:
+                # TODO: load data may not through pickel
                 demo_paths = pickle.load(f)
             # TODO: sample self.params['demo_size'] from demo_paths -- implemented
             return demo_paths[: self.params['demo_size']]
@@ -169,13 +182,14 @@ class GCL_Trainer():
                 then import based on the indicator
                 Do 3 example first, train and save the parameter
             '''
-            from stable_baselines3 import PPO
+            from stable_baselines3 import PPO, A2C
             expert_policy = PPO.load(expert_policy)
             print('\nRunning expert policy to collect demonstrations...')
             demo_paths, _ = utils.sample_trajectories(
-                self.env, 
-                expert_policy, 
-                batch_size=self.params['demo_size'], 
+                self.env,
+                expert_policy,
+                agent=self.agent,
+                batch_size=self.params['demo_size'],
                 expert=True
             )
         else:
@@ -192,14 +206,16 @@ class GCL_Trainer():
             train_video_paths: paths which also contain videos for visualization purposes
         """
         print("\nCollecting sample trajectories to be used for training...")
-        paths, envsteps_this_batch = utils.sample_trajectories(self.env, collect_policy, batch_size)
-
+        # self.agent.reward()
+        paths, envsteps_this_batch = utils.sample_trajectories(self.env, collect_policy, batch_size,
+                                                               agent=self.agent)
 
         train_video_paths = None
         if self.log_video:
             print('\nCollecting train rollouts to be used for saving videos...')
             # TODO look in utils and implement sample_n_trajectories -- implemented change reder to True
-            train_video_paths, _ = utils.sample_trajectories(self.env, collect_policy, batch_size, render=False,)
+            train_video_paths, _ = utils.sample_trajectories(self.env, collect_policy, batch_size,
+                                                             agent=self.agent, render=False, )
 
         # TODO: add logging
         if self.logmetrics:
@@ -221,12 +237,13 @@ class GCL_Trainer():
             sample_batch = self.agent.sample_rollouts(self.params['train_sample_batch_size'])
 
             # Use the sampled data to train the reward function
-            # TODO: Esimate dL_{ioc}/dθ (θ) using batch D^_{demo} and D_{demo}
-            # TODO: Update parameters θ using gradient dL_{ioc}/dθ (θ)
+            # Estimate dL_{ioc}/dθ (θ) using batch D^_{demo} and D_{demo}
+            # Update parameters θ using gradient dL_{ioc}/dθ (θ)
             reward_log = self.agent.train_reward(demo_batch, sample_batch)
             reward_logs.append(reward_log)
         return reward_logs
 
+    
     def train_policy(self):
         """
         Guided policy search or PG
@@ -234,12 +251,11 @@ class GCL_Trainer():
         print('\nTraining agent using sampled data from replay buffer...')
         train_logs = []
         for train_step in range(self.params['num_policy_train_steps_per_iter']):
-            ob_batch, ac_batch, re_batch, next_ob_batch, terminal_batch = self.agent.sample(self.params['train_batch_size'])
+            ob_batch, ac_batch, re_batch, next_ob_batch, terminal_batch = self.agent.sample(
+                self.params['train_batch_size'])
             train_log = self.agent.train_policy(ob_batch, ac_batch, re_batch, next_ob_batch, terminal_batch)
             train_logs.append(train_log)
         return train_logs
-
-
 
     def perform_logging(self, itr, paths, eval_policy, train_video_paths, reward_logs, policy_logs):
 
@@ -250,20 +266,22 @@ class GCL_Trainer():
         # collect eval trajectories, for logging
         print("\nCollecting data for eval...")
         eval_paths, _ = utils.sample_trajectories(
-            self.env, eval_policy, 
-            self.params['eval_batch_size'], render=True
+            self.env, eval_policy,
+            self.params['eval_batch_size'],
+            agent=self.agent,
+            render=True
         )
 
         # save eval rollouts as videos in tensorboard event file
-        if self.log_video and train_video_paths != None:
-            eval_video_paths, _ = utils.sample_trajectories(self.env, eval_policy, MAX_NVIDEO, render=True)
+        if self.log_video and train_video_paths is not None:
+            eval_video_paths, _ = utils.sample_trajectories(self.env, eval_policy,self.agent, MAX_NVIDEO, render=True)
 
-            #save train/eval videos
+            # save train/eval videos
             print('\nSaving train and eval rollouts as videos...')
             self.logger.log_paths_as_videos(train_video_paths, itr, fps=self.fps, max_videos_to_save=MAX_NVIDEO,
                                             video_title='train_rollouts')
             self.logger.log_paths_as_videos(eval_video_paths, itr, fps=self.fps, max_videos_to_save=MAX_NVIDEO,
-                                             video_title='eval_rollouts')
+                                            video_title='eval_rollouts')
 
         #######################
 
