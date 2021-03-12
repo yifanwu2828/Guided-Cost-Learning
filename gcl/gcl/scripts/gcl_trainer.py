@@ -11,6 +11,7 @@ import torch
 # set overflow warning to error instead
 np.seterr(all='raise')
 torch.autograd.set_detect_anomaly(True)
+from tqdm import tqdm
 
 import pytorch_util as ptu
 import utils
@@ -101,8 +102,9 @@ class GCL_Trainer():
         demo_paths = self.collect_demo_trajectories(expert_data, expert_policy)
         self.agent.add_to_buffer(demo_paths, demo=True)
 
-        for itr in range(n_iter):
-            print("\n********** Iteration {} ************".format(itr))
+        for itr in tqdm(range(n_iter)):
+            print("\n")
+            print("********** Iteration {} ************".format(itr))
 
             # decide if videos should be rendered/logged at this iteration
             if itr % self.params['video_log_freq'] == 0 and self.params['video_log_freq'] != -1:
@@ -152,6 +154,7 @@ class GCL_Trainer():
         """
         # Load expert policy or expert demonstrations D_demo
         if expert_data:
+            # if expert_data != ''
             print('\nLoading saved demonstrations...')
 
             with open(expert_data, 'rb') as f:

@@ -2,9 +2,11 @@ import argparse
 import os
 import time
 
+import matplotlib.pyplot as plt
+
 from gcl_trainer import GCL_Trainer
 from gcl.agents.gcl_agent import GCL_Agent
-
+from utils import tic, toc
 
 class IRL_Trainer():
 
@@ -104,7 +106,7 @@ if __name__ == '__main__':
     parser.add_argument('--seed', type=int, default=1)
     parser.add_argument('--no_gpu', '-ngpu', action='store_true')
     parser.add_argument('--which_gpu', '-gpu_id', default=0)
-    parser.add_argument('--video_log_freq', type=int, default=1)
+    parser.add_argument('--video_log_freq', type=int, default= -1) # -1 not log video
     parser.add_argument('--scalar_log_freq', type=int, default=1)
     parser.add_argument('--save_params', action='store_true')
 
@@ -143,4 +145,6 @@ if __name__ == '__main__':
     ###################
 
     trainer = IRL_Trainer(params)
+    start_train = tic()
     trainer.run_training_loop()
+    toc(start_train)
