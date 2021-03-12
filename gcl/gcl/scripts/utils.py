@@ -1,5 +1,6 @@
 import numpy as np
 import time
+import torch
 
 ############################################
 def tic(message=None):
@@ -14,7 +15,7 @@ def toc(t_start, name="Operation"):
     print(f'############ {name} took: {(time.time() - t_start):.4f} sec. ############\n')
 ############################################
 
-def sample_trajectory(env, policy, render=False, render_mode=('rgb_array'), expert=False):
+def sample_trajectory(env, policy, agent, render=False, render_mode=('rgb_array'), expert=False):
 
     # initialize env for the beginning of a new rollout
     ob = env.reset() 
@@ -52,7 +53,14 @@ def sample_trajectory(env, policy, render=False, render_mode=('rgb_array'), expe
         # record result of taking that action
         steps += 1
         next_obs.append(ob)
-        rewards.append(rew)
+
+        if expert:
+            rewards.append(rew)
+        else:
+            # not running on gpu which is slow
+            rewards.append(agent.reward.forward(torch.from_numpy(ob).float(),
+                                                torch.from_numpy(ac).float()).detach().numpy())
+
 
         # end the rollout if the rollout ended
         # HINT: rollout can end due to done, or due to max_path_length
@@ -66,7 +74,7 @@ def sample_trajectory(env, policy, render=False, render_mode=('rgb_array'), expe
 
     return Path(obs, image_obs, acs, log_probs, rewards, next_obs, terminals)
 
-def sample_trajectories(env, policy, batch_size, render=False, render_mode=('rgb_array'), expert=False):
+def sample_trajectories(env, policy, batch_size, agent, render=False, render_mode=('rgb_array'), expert=False):
     """
     Sample rollouts until we have collected batch_size trajectories
     """
@@ -74,7 +82,7 @@ def sample_trajectories(env, policy, batch_size, render=False, render_mode=('rgb
     timesteps_this_batch = 0
     for _ in range(batch_size):
         path = sample_trajectory(
-            env, policy, render=render, 
+            env, policy, agent ,render=render,
             render_mode=render_mode, expert=expert
         )
         paths.append(path)
