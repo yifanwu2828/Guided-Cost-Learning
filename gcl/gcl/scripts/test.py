@@ -2,6 +2,7 @@ import argparse
 import os
 import time
 
+import numpy as np
 import matplotlib.pyplot as plt
 
 from gcl_trainer import GCL_Trainer
@@ -43,13 +44,14 @@ class IRL_Trainer():
         self.gcl_trainer = GCL_Trainer(self.params)
 
     def run_training_loop(self):
-        self.gcl_trainer.run_training_loop(
+        train_log_lst, policy_log_lst = self.gcl_trainer.run_training_loop(
             self.params['n_iter'],
             collect_policy=self.gcl_trainer.agent.actor,
             eval_policy=self.gcl_trainer.agent.actor,
             expert_data=self.params['expert_data'],
             expert_policy=self.params['expert_policy']
         )
+        return train_log_lst, policy_log_lst
 
 
 
@@ -118,10 +120,11 @@ if __name__ == '__main__':
     # chage path of pretrain model
     path = os.getcwd()
     # print (os.path.join(path,"tmp", "ppo_nav_env"))
-    params["expert_policy"] = os.path.join(path,"tmp/demo_agent", "ppo_nav_env")
 
-    print(os.getcwd())
-    print("##### Begin ########")
+    params["expert_policy"] = os.path.join(path,"tmp/demo_agent", params["expert_policy"])
+    params['n_iter'] = 10
+
+    print("##### PARAM ########")
     print(params)
 
 
@@ -146,5 +149,19 @@ if __name__ == '__main__':
 
     trainer = IRL_Trainer(params)
     start_train = tic()
-    trainer.run_training_loop()
+    train_log_lst, policy_log_lst = trainer.run_training_loop()
     toc(start_train)
+
+    TEST = True
+    if TEST:
+        a = np.array(train_log_lst)
+        b = np.array(policy_log_lst)
+        np.allclose(a, b)
+        plt.figure()
+        plt.plot(train_log_lst)
+        plt.title("train")
+        plt.show()
+        plt.figure()
+        plt.plot(policy_log_lst)
+        plt.title("policy")
+        plt.show()
