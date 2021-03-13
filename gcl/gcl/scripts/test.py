@@ -9,6 +9,7 @@ from gcl_trainer import GCL_Trainer
 from gcl.agents.gcl_agent import GCL_Agent
 from utils import tic, toc
 
+
 class IRL_Trainer():
 
     def __init__(self, params):
@@ -44,14 +45,14 @@ class IRL_Trainer():
         self.gcl_trainer = GCL_Trainer(self.params)
 
     def run_training_loop(self):
-        train_log_lst, policy_log_lst = self.gcl_trainer.run_training_loop(
+        train_log_lst, policy_log_lst, a, b = self.gcl_trainer.run_training_loop(
             self.params['n_iter'],
             collect_policy=self.gcl_trainer.agent.actor,
             eval_policy=self.gcl_trainer.agent.actor,
             expert_data=self.params['expert_data'],
             expert_policy=self.params['expert_policy']
         )
-        return train_log_lst, policy_log_lst
+        return train_log_lst, policy_log_lst, a, b
 
 
 
@@ -108,7 +109,7 @@ if __name__ == '__main__':
     parser.add_argument('--seed', type=int, default=1)
     parser.add_argument('--no_gpu', '-ngpu', action='store_true')
     parser.add_argument('--which_gpu', '-gpu_id', default=0)
-    parser.add_argument('--video_log_freq', type=int, default= -1) # -1 not log video
+    parser.add_argument('--video_log_freq', type=int, default=-1) # -1 not log video
     parser.add_argument('--scalar_log_freq', type=int, default=1)
     parser.add_argument('--save_params', action='store_true')
 
@@ -121,8 +122,9 @@ if __name__ == '__main__':
     path = os.getcwd()
     # print (os.path.join(path,"tmp", "ppo_nav_env"))
 
-    params["expert_policy"] = os.path.join(path,"tmp/demo_agent", params["expert_policy"])
-    params['n_iter'] = 10
+    params["expert_policy"] = os.path.join(path, "tmp/demo_agent", params["expert_policy"])
+    params['n_iter'] = 100
+    params['demo_size'] = 10
 
     print("##### PARAM ########")
     print(params)
@@ -149,19 +151,38 @@ if __name__ == '__main__':
 
     trainer = IRL_Trainer(params)
     start_train = tic()
-    train_log_lst, policy_log_lst = trainer.run_training_loop()
+    train_log_lst, policy_log_lst, a, b = trainer.run_training_loop()
     toc(start_train)
 
-    TEST = True
-    if TEST:
-        a = np.array(train_log_lst)
-        b = np.array(policy_log_lst)
-        np.allclose(a, b)
-        plt.figure()
-        plt.plot(train_log_lst)
-        plt.title("train")
-        plt.show()
-        plt.figure()
-        plt.plot(policy_log_lst)
-        plt.title("policy")
-        plt.show()
+    mean_reward = []
+    mean_policy = []
+    for i in range(len(a)):
+        mean_reward.append(a[i].mean())
+        mean_policy.append(b[i].mean())
+
+    f1 = plt.figure()
+    plt.plot(mean_reward)
+    plt.show()
+
+    f2 = plt.figure()
+    plt.plot(mean_policy)
+    plt.show()
+
+    f3 = plt.figure()
+    plt.plot(train_log_lst)
+    plt.title("train")
+    # plt.ylim(-5000,500)
+    plt.plot(list(range(len(train_log_lst))), [train_log_lst[0]]*len(train_log_lst))
+    plt.show()
+
+    f4 = plt.figure()
+    plt.plot(train_log_lst)
+    plt.title("train_limit")
+    plt.ylim(-500,500)
+    plt.plot(list(range(len(train_log_lst))), [train_log_lst[0]] * len(train_log_lst))
+    plt.show()
+
+    f5 = plt.figure()
+    plt.plot(policy_log_lst)
+    plt.title("policy")
+    plt.show()

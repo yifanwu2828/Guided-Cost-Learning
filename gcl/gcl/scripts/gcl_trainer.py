@@ -103,14 +103,15 @@ class GCL_Trainer():
         # add demonstrations to replay buffer
         demo_paths = self.collect_demo_trajectories(expert_data, expert_policy)
         self.agent.add_to_buffer(demo_paths, demo=True)
-        
+
         train_log_lst = []
         policy_log_lst = []
+        a, b = [], []
+
         # 2.
         for itr in tqdm(range(n_iter)):
             print("\n")
             print("********** Iteration {} ************".format(itr))
-
             # decide if videos should be rendered/logged at this iteration
             if itr % self.params['video_log_freq'] == 0 and self.params['video_log_freq'] != -1:
                 self.log_video = True
@@ -146,15 +147,23 @@ class GCL_Trainer():
             for j in policy_logs:
                 value = float(j['Training Loss'])
                 policy_log_lst.append(value)
+
             # log/save
             if self.log_video or self.logmetrics:
                 # perform logging
                 print('\nBeginning logging procedure...')
-                self.perform_logging(itr, paths, eval_policy, train_video_paths, reward_logs, policy_logs)
+                # self.perform_logging(itr, paths, eval_policy, train_video_paths, reward_logs, policy_logs)
 
                 if self.params['save_params']:
                     self.agent.save('{}/agent_itr_{}.pt'.format(self.params['logdir'], itr))
-        return train_log_lst, policy_log_lst
+
+            train_log_lst_plt = np.array([float(i['Training reward loss']) for i in reward_logs])
+            print(len(train_log_lst_plt))
+            policy_log_lst_plt = np.array([float(j['Training Loss']) for j in policy_logs])
+            a.append(train_log_lst_plt)
+            b.append(policy_log_lst_plt)
+        # show_plot("All", a, b)
+        return train_log_lst, policy_log_lst, a, b
 
     def collect_demo_trajectories(self, expert_data, expert_policy):
         """
@@ -274,7 +283,7 @@ class GCL_Trainer():
 
         # save eval rollouts as videos in tensorboard event file
         if self.log_video and train_video_paths is not None:
-            eval_video_paths, _ = utils.sample_trajectories(self.env, eval_policy,self.agent, MAX_NVIDEO, render=True)
+            eval_video_paths, _ = utils.sample_trajectories(self.env, eval_policy, self.agent, MAX_NVIDEO, render=True)
 
             # save train/eval videos
             print('\nSaving train and eval rollouts as videos...')
@@ -327,3 +336,15 @@ class GCL_Trainer():
             print('Done logging...\n\n')
 
             self.logger.flush()
+
+
+def show_plot(itr, train_log_lst, policy_log_lst):
+    import matplotlib.pyplot as plt
+    plt.figure()
+    plt.plot(train_log_lst)
+    plt.title("train "+ itr)
+    plt.show()
+    plt.figure()
+    plt.plot(policy_log_lst)
+    plt.title("policy "+ itr)
+    plt.show()

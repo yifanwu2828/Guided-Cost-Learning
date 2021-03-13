@@ -25,6 +25,7 @@ def sample_trajectory(env, policy, agent, render=False, render_mode=('rgb_array'
     # init vars
     obs, acs, log_probs, rewards, next_obs, terminals, image_obs = [], [], [], [], [], [], []
     steps = 0
+    true_reward = []
     while True:
 
         # render image of the simulated env
@@ -62,7 +63,7 @@ def sample_trajectory(env, policy, agent, render=False, render_mode=('rgb_array'
             # not running on gpu which is slow
             rewards.append(agent.reward.forward(torch.from_numpy(ob).float(),
                                                 torch.from_numpy(ac).float()).detach().numpy())
-
+        # true_rewards.append()
         # end the rollout if the rollout ended
         # HINT: rollout can end due to done, or due to max_path_length
         rollout_done = 0
@@ -96,7 +97,6 @@ def sample_trajectories(env, policy, batch_size, agent, render=False, render_mod
 def sample_n_trajectories(env, policy, ntraj, max_path_length, render=False, render_mode='rgb_array'):
     """
         Collect ntraj rollouts.
-        TODO implement this function
         Hint1: use sample_trajectory to get each path (i.e. rollout) that goes into paths
     """
     paths = []
