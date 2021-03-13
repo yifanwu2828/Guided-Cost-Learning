@@ -2,6 +2,7 @@ import numpy as np
 import time
 import torch
 
+
 ############################################
 def tic(message=None):
     if message:
@@ -13,12 +14,13 @@ def tic(message=None):
 
 def toc(t_start, name="Operation"):
     print(f'############ {name} took: {(time.time() - t_start):.4f} sec. ############\n')
+
+
 ############################################
 
 def sample_trajectory(env, policy, agent, render=False, render_mode=('rgb_array'), expert=False):
-
     # initialize env for the beginning of a new rollout
-    ob = env.reset() 
+    ob = env.reset()
 
     # init vars
     obs, acs, log_probs, rewards, next_obs, terminals, image_obs = [], [], [], [], [], [], []
@@ -42,7 +44,7 @@ def sample_trajectory(env, policy, agent, render=False, render_mode=('rgb_array'
             ac, _ = policy.predict(obs)
             log_prob = None
         else:
-            ac, log_prob = policy.get_action(ob) 
+            ac, log_prob = policy.get_action(ob)
         ac = ac[0]
         acs.append(ac)
         log_probs.append(log_prob)
@@ -61,12 +63,11 @@ def sample_trajectory(env, policy, agent, render=False, render_mode=('rgb_array'
             rewards.append(agent.reward.forward(torch.from_numpy(ob).float(),
                                                 torch.from_numpy(ac).float()).detach().numpy())
 
-
         # end the rollout if the rollout ended
         # HINT: rollout can end due to done, or due to max_path_length
         rollout_done = 0
         if done or steps >= env.max_steps:
-            rollout_done = 1 # HINT: this is either 0 or 1
+            rollout_done = 1  # HINT: this is either 0 or 1
         terminals.append(rollout_done)
 
         if rollout_done:
@@ -74,7 +75,8 @@ def sample_trajectory(env, policy, agent, render=False, render_mode=('rgb_array'
 
     return Path(obs, image_obs, acs, log_probs, rewards, next_obs, terminals)
 
-def sample_trajectories(env, policy, batch_size, agent, render=False, render_mode=('rgb_array'), expert=False):
+
+def sample_trajectories(env, policy, batch_size, agent, render=False, render_mode='rgb_array', expert=False):
     """
     Sample rollouts until we have collected batch_size trajectories
     """
@@ -82,7 +84,7 @@ def sample_trajectories(env, policy, batch_size, agent, render=False, render_mod
     timesteps_this_batch = 0
     for _ in range(batch_size):
         path = sample_trajectory(
-            env, policy, agent ,render=render,
+            env, policy, agent, render=render,
             render_mode=render_mode, expert=expert
         )
         paths.append(path)
@@ -91,7 +93,7 @@ def sample_trajectories(env, policy, batch_size, agent, render=False, render_mod
     return paths, timesteps_this_batch
 
 
-def sample_n_trajectories(env, policy, ntraj, max_path_length, render=False, render_mode=('rgb_array')):
+def sample_n_trajectories(env, policy, ntraj, max_path_length, render=False, render_mode='rgb_array'):
     """
         Collect ntraj rollouts.
         TODO implement this function
@@ -103,6 +105,7 @@ def sample_n_trajectories(env, policy, ntraj, max_path_length, render=False, ren
 
     return paths
 
+
 ############################################
 ############################################
 
@@ -113,13 +116,14 @@ def Path(obs, image_obs, acs, log_probs, rewards, next_obs, terminals):
     """
     if image_obs != []:
         image_obs = np.stack(image_obs, axis=0)
-    return {"observation" : np.array(obs, dtype=np.float32),
-            "image_obs" : np.array(image_obs, dtype=np.uint8),
-            "reward" : np.array(rewards, dtype=np.float32),
-            "action" : np.array(acs, dtype=np.float32),
+    return {"observation": np.array(obs, dtype=np.float32),
+            "image_obs": np.array(image_obs, dtype=np.uint8),
+            "reward": np.array(rewards, dtype=np.float32),
+            "action": np.array(acs, dtype=np.float32),
             "log_prob": np.array(log_probs, dtype=np.float32),
             "next_observation": np.array(next_obs, dtype=np.float32),
             "terminal": np.array(terminals, dtype=np.float32)}
+
 
 ############################################
 ############################################
@@ -139,14 +143,17 @@ def convert_listofrollouts(paths):
     unconcatenated_rewards = [path["reward"] for path in paths]
     return observations, actions, log_probs, next_observations, terminals, concatenated_rewards, unconcatenated_rewards
 
+
 ############################################
 ############################################
 
 def get_pathlength(path):
     return len(path["reward"])
 
+
 def normalize(data, mean, std, eps=1e-8):
-    return (data-mean)/(std+eps)
+    return (data - mean) / (std + eps)
+
 
 def unnormalize(data, mean, std):
-    return data*std+mean
+    return data * std + mean
