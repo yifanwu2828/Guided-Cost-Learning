@@ -2,6 +2,7 @@ import os
 from tensorboardX import SummaryWriter
 import numpy as np
 
+
 class Logger:
     def __init__(self, log_dir, n_logged_samples=10, summary_writer=None):
         self._log_dir = log_dir
@@ -53,14 +54,14 @@ class Logger:
         assert figure.shape[0] > 0, "Figure logging requires input shape [batch x figures]!"
         self._summ_writer.add_figure('{}_{}'.format(name, phase), figure, step)
 
-    def log_figure(self, figure, name, step, phase):
-        """figure: matplotlib.pyplot figure handle"""
-        self._summ_writer.add_figure('{}_{}'.format(name, phase), figure, step)
+    # def log_figure(self, figure, name, step, phase):
+    #     """figure: matplotlib.pyplot figure handle"""
+    #     self._summ_writer.add_figure('{}_{}'.format(name, phase), figure, step)
 
-    def log_graph(self, array, name, step, phase):
-        """figure: matplotlib.pyplot figure handle"""
-        im = plot_graph(array)
-        self._summ_writer.add_image('{}_{}'.format(name, phase), im, step)
+    # def log_graph(self, array, name, step, phase):
+    #     """figure: matplotlib.pyplot figure handle"""
+    #     im = plot_graph(array)
+    #     self._summ_writer.add_image('{}_{}'.format(name, phase), im, step)
 
     def dump_scalars(self, log_path=None):
         log_path = os.path.join(self._log_dir, "scalar_data.json") if log_path is None else log_path
