@@ -1,21 +1,22 @@
-import time
-import gym 
-import gym_nav 
+import gym
+import gym_nav
 
 import numpy as np
 
 from stable_baselines3 import A2C, SAC, PPO
 from stable_baselines3.ppo import MlpPolicy
-#from stable_baselines3.sac import MlpPolicy
+# from stable_baselines3.sac import MlpPolicy
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.monitor import Monitor
 
 
-def evaluate(model, num_episodes=100, env_id = 'NavEnv-v0', render=False):
+def evaluate(model, num_episodes=100, env_id='NavEnv-v0', render=False):
     """
     Evaluate a RL agent
     :param model: (BaseRLModel object) the RL Agent
     :param num_episodes: (int) number of episodes to evaluate it
+    :param env_id: env name
+    :param render: whether to render
     :return: (float) Mean reward for the last num_episodes
     """
     # This function will only work for a single Environment
@@ -91,26 +92,27 @@ def PPO_demo():
             obs = env.reset()
     env.close()
 
-def SAC_demo():
-   print("################# Collecting SAC Demo #################")
-   env = gym.make('NavEnv-v0')
-   # wrap Monitor to env to visulize ep_len_mean and ep_rew_mean
-   env = Monitor(env)
-   # model = SAC('MlpPolicy', env, verbose=1,)
-   # model.learn(total_timesteps=2e4, log_interval=10)
-   # model.save("sac_nav_env")
-   model = SAC.load("tmp/demo_agent/sac_nav_env")
-   evaluate(model, num_episodes=200, env_id='NavEnv-v0')
 
+def SAC_demo():
+    print("################# Collecting SAC Demo #################")
+    env = gym.make('NavEnv-v0')
+    # wrap Monitor to env to visulize ep_len_mean and ep_rew_mean
+    env = Monitor(env)
+    # model = SAC('MlpPolicy', env, verbose=1,)
+    # model.learn(total_timesteps=2e4, log_interval=10)
+    # model.save("sac_nav_env")
+    model = SAC.load("tmp/demo_agent/sac_nav_env")
+    evaluate(model, num_episodes=200, env_id='NavEnv-v0')
 
 
 if __name__ == '__main__':
-    selected_demo = input("Select one of the demo: 'PPO','A2C',SAC")
-    if selected_demo == "PPO":
-        PPO_demo()
-    elif selected_demo =="A2C":
-        A2C_demo()
-    elif selected_demo =="SAC":
-        SAC_demo()
-    else:
-        print(f"No option for {selected_demo}")
+    # selected_demo = input("Select one of the demo: 'PPO','A2C',SAC")
+    # if selected_demo == "PPO":
+    #     PPO_demo()
+    # elif selected_demo =="A2C":
+    #     A2C_demo()
+    # elif selected_demo =="SAC":
+    #     SAC_demo()
+    # else:
+    #     print(f"No option for {selected_demo}")
+    A2C_demo()
