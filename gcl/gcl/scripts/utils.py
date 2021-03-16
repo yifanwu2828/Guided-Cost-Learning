@@ -13,7 +13,7 @@ def tic(message=None):
 
 
 def toc(t_start, name="Operation"):
-    print(f'############ {name} took: {(time.time() - t_start):.4f} sec. ############\n')
+    print(f'\n############ {name} took: {(time.time() - t_start):.4f} sec. ############\n')
 
 
 ############################################
