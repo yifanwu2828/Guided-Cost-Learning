@@ -5,10 +5,12 @@ from torch import optim
 
 from gcl.scripts import pytorch_util as ptu
 
+
 class MLPReward(nn.Module):
     """
     Defines a reward function given the current observation and action
     """
+
     def __init__(self, ac_dim, ob_dim, n_layers, size, output_size, learning_rate):
         super().__init__()
 
@@ -18,7 +20,6 @@ class MLPReward(nn.Module):
         self.size = size
         self.output_size = output_size
         self.learning_rate = learning_rate
-
 
         self.mlp = ptu.build_mlp(
             input_size=self.ob_dim,
@@ -42,8 +43,6 @@ class MLPReward(nn.Module):
             itertools.chain([self.A, self.b, self.w], self.mlp.parameters()),
             self.learning_rate
         )
-
-
 
     def forward(self, observation: torch.FloatTensor, action: torch.FloatTensor):
         """
@@ -81,13 +80,11 @@ class MLPReward(nn.Module):
 
         # TODO: Use importance sampling to estimate sample return 
         # trick to avoid overflow: log(exp(x1) + exp(x2)) = x + log(exp(x1-x) + exp(x2-x)) where x = max(x1, x2)
-        loss = -torch.mean(demo_return) + torch.log(torch.sum(torch.exp(w-w_max))) + w_max
+        loss = -torch.mean(demo_return) + torch.log(torch.sum(torch.exp(w - w_max))) + w_max
 
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
 
-        train_reward_log = {
-            "Training reward loss": ptu.to_numpy(loss)
-        }
+        train_reward_log = {"Training reward loss": ptu.to_numpy(loss)}
         return train_reward_log
