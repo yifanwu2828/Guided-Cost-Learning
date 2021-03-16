@@ -1,10 +1,11 @@
 import numpy as np
 
 from gcl.agents.mlp_policy import MLPPolicyPG
-from gcl.agents.base_agent import BaseAgent 
+from gcl.agents.base_agent import BaseAgent
 from gcl.agents.mlp_reward import MLPReward
 from gcl.scripts.replay_buffer import ReplayBuffer
 import gcl.scripts.utils as utils
+
 
 class GCL_Agent(BaseAgent):
     def __init__(self, env, agent_params):
@@ -50,7 +51,7 @@ class GCL_Agent(BaseAgent):
         sample_log_probs = np.array([sample['log_prob'] for sample in sample_batch])
 
         reward_log = self.reward.update(demo_obs, demo_acs, sample_obs, sample_acs, sample_log_probs)
-        
+
         return reward_log
 
     def train_policy(self, observations, actions, rewards_list, next_observations, terminals):
@@ -66,7 +67,7 @@ class GCL_Agent(BaseAgent):
         advantages = self.estimate_advantage(observations, q_values)
 
         # TODO: step 3: use all datapoints (s_t, a_t, q_t, adv_t) to update the PG actor/policy
-        ## HINT: `train_log` should be returned by your actor update method
+        # HINT: `train_log` should be returned by your actor update method
         train_log = self.actor.update(observations, actions, advantages, q_values)
 
         return train_log
@@ -88,29 +89,29 @@ class GCL_Agent(BaseAgent):
         """
         # Estimate the advantage when nn_baseline is True,
         # by querying the neural network that you're using to learn the baseline
-        baselines_unnormalized = self.actor.run_baseline_prediction(obs)
+        baselines_unnormalized = self.actor.run_baseline_prediction(obs)  # V(s)
 
-        ## ensure that the baseline and q_values have the same dimensionality
-        ## to prevent silent broadcasting errors
+        # ensure that the baseline and q_values have the same dimensionality
+        # to prevent silent broadcasting errors
         assert baselines_unnormalized.ndim == q_values.ndim
 
-        ## baseline was trained with standardized q_values, so ensure that the predictions
-        ## have the same mean and standard deviation as the current batch of q_values
+        # baseline was trained with standardized q_values, so ensure that the predictions
+        # have the same mean and standard deviation as the current batch of q_values
         baselines = baselines_unnormalized * np.std(q_values) + np.mean(q_values)
-        ## TODO: compute advantage estimates using q_values and baselines
+        # TODO: compute advantage estimates using q_values and baselines
         advantages = q_values - baselines
 
         # Normalize the resulting advantages
-        ## TODO: standardize the advantages to have a mean of zero
-        ## and a standard deviation of one
-        ## HINT: there is a `normalize` function in `infrastructure.utils`
+        # TODO: standardize the advantages to have a mean of zero
+        # and a standard deviation of one
+        # HINT: there is a `normalize` function in `infrastructure.utils`
         advantages = utils.normalize(advantages, np.mean(advantages), np.std(advantages))
 
         return advantages
 
     #####################################################
     #####################################################
-    
+
     def add_to_buffer(self, paths, demo=False):
         """
         Add paths to demo or sample buffer
@@ -133,24 +134,25 @@ class GCL_Agent(BaseAgent):
         """
         Sample transition steps of size batch_size
         """
-        return self.demo_buffer.sample_recent_data(batch_size, concat_rew=False)    
+        return self.demo_buffer.sample_recent_data(batch_size, concat_rew=False)
+
 
     #####################################################
     ################## HELPER FUNCTIONS #################
     #####################################################
 
+
     def _discounted_cumsum(self, rewards):
         """
-            Helper function which
-            -takes a list of rewards {r_0, r_1, ..., r_t', ... r_T},
-            -and returns a list where the entry in each index t' is sum_{t'=t}^T gamma^(t'-t) * r_{t'}
+        Helper function which
+        -takes a list of rewards {r_0, r_1, ..., r_t', ... r_T},
+        -and returns a list where the entry in each index t' is sum_{t'=t}^T gamma^(t'-t) * r_{t'}
         """
 
         # TODO: create `list_of_discounted_returns`
         # HINT1: note that each entry of the output should now be unique,
-            # because the summation happens over [t, T] instead of [0, T]
+        # because the summation happens over [t, T] instead of [0, T]
         # HINT2: it is possible to write a vectorized solution, but a solution
-            # using a for loop is also fine
         list_of_discounted_cumsums = [0] * len(rewards)
         s = 0
         for t, r in reversed(list(enumerate(rewards))):
