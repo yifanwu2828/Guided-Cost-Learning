@@ -17,8 +17,9 @@ class MLPPolicy(BasePolicy, nn.Module, metaclass=abc.ABCMeta):
     """
     Policy for predicting a Gaussian action distribution
     """
+
     def __init__(self, ac_dim, ob_dim, n_layers, size,
-                 learning_rate=1e-4, training=True, 
+                 learning_rate=1e-4, training=True,
                  nn_baseline=False, **kwargs):
         super().__init__(**kwargs)
 
@@ -34,8 +35,8 @@ class MLPPolicy(BasePolicy, nn.Module, metaclass=abc.ABCMeta):
         # Only consider continuous action space
         self.logits_na = None
         self.mean_net = ptu.build_mlp(input_size=self.ob_dim,
-                                  output_size=self.ac_dim,
-                                  n_layers=self.n_layers, size=self.size)
+                                      output_size=self.ac_dim,
+                                      n_layers=self.n_layers, size=self.size)
         self.logstd = nn.Parameter(
             torch.zeros(self.ac_dim, dtype=torch.float32, device=ptu.device)
         )
@@ -91,10 +92,10 @@ class MLPPolicyPG(MLPPolicy):
     """
     Policy that uses policy gradient to update parameters
     """
-    def __init__(self, ac_dim, ob_dim, n_layers, size, **kwargs):
 
+    def __init__(self, ac_dim, ob_dim, n_layers, size, **kwargs):
         super().__init__(ac_dim, ob_dim, n_layers, size, **kwargs)
-        
+
         self.baseline = ptu.build_mlp(
             input_size=self.ob_dim,
             output_size=1,
@@ -116,14 +117,18 @@ class MLPPolicyPG(MLPPolicy):
 
         # TODO: compute the loss that should be optimized when training with policy gradient
         # HINT1: Recall that the expression that we want to MAXIMIZE
-            # is the expectation over collected trajectories of:
-            # sum_{t=0}^{T-1} [grad [log pi(a_t|s_t) * (Q_t - b_t)]]
+        # is the expectation over collected trajectories of:
+        # sum_{t=0}^{T-1} [grad [log pi(a_t|s_t) * (Q_t - b_t)]]
+
         # HINT2: you will want to use the `log_prob` method on the distribution returned
-            # by the `forward` method
-        # HINT3: don't forget that `optimizer.step()` MINIMIZES a loss
+        # by the `forward` method
+
         mean, std = self(observations)
         dist = distributions.MultivariateNormal(mean, torch.diag(std))
         log_prob = dist.log_prob(actions)
+
+        # log_prob is negative
+        # advantage = Q-V should be positive indicate the traj is better than average of traj
         loss = -torch.mean(log_prob * advantages)
 
         # TODO: optimize `loss` using `self.optimizer`
@@ -132,18 +137,18 @@ class MLPPolicyPG(MLPPolicy):
         loss.backward()
         self.optimizer.step()
 
-        ## TODO: normalize the q_values to have a mean of zero and a standard deviation of one
+        # TODO: normalize the q_values to have a mean of zero and a standard deviation of one
         targets = utils.normalize(q_values, np.mean(q_values), np.std(q_values))
         targets = ptu.from_numpy(targets)
 
-        ## TODO: use the `forward` method of `self.baseline` to get baseline predictions
+        # TODO: use the `forward` method of `self.baseline` to get baseline predictions
         baseline_predictions = torch.squeeze(self.baseline(observations))
-        
-        ## avoid any subtle broadcasting bugs that can arise when dealing with arrays of shape
-        ## [ N ] versus shape [ N x 1 ]
-        ## HINT: you can use `squeeze` on torch tensors to remove dimensions of size 1
+
+        # avoid any subtle broadcasting bugs that can arise when dealing with arrays of shape
+        # [ N ] versus shape [ N x 1 ]
+        # HINT: you can use `squeeze` on torch tensors to remove dimensions of size 1
         assert baseline_predictions.shape == targets.shape
-        
+
         # TODO: compute the loss that should be optimized for training the baseline MLP (`self.baseline`)
         # HINT: use `F.mse_loss`
         baseline_loss = F.mse_loss(targets, baseline_predictions)
@@ -153,9 +158,7 @@ class MLPPolicyPG(MLPPolicy):
         baseline_loss.backward()
         self.baseline_optimizer.step()
 
-        train_log = {
-            'Training Loss': ptu.to_numpy(loss),
-        }
+        train_log = {'Training Loss': ptu.to_numpy(loss),}
         return train_log
 
     def run_baseline_prediction(self, obs):
@@ -172,9 +175,11 @@ class MLPPolicyPG(MLPPolicy):
         predictions = self.baseline(obs)
         return ptu.to_numpy(predictions)[:, 0]
 
+
 class MLPPolicyGPS(MLPPolicy):
     """
     Policy that uses guided policy search to update parameters
     """
-    def __init__():
+
+    def __init__(self):
         raise NotImplementedError
