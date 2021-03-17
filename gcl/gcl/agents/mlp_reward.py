@@ -44,7 +44,7 @@ class MLPReward(nn.Module):
             self.learning_rate
         )
 
-    def forward(self, observation: torch.FloatTensor, action: torch.FloatTensor):
+    def forward(self, observation: torch.FloatTensor, action: torch.FloatTensor) -> torch.FloatTensor:
         """
         Returns the reward for the current state and action
         c(x, u) = |Ay + b|^2 + w |u|^2 where y = mlp(x)
