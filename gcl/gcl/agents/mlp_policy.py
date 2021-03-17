@@ -47,7 +47,10 @@ class MLPPolicy(BasePolicy, nn.Module, metaclass=abc.ABCMeta):
             itertools.chain([self.logstd], self.mean_net.parameters()),
             self.learning_rate
         )
-
+        # self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(self.optimizer,
+        #                                                       factor=0.1,
+        #                                                       patience=5,
+        #                                                       verbose=True)
     ##################################
 
     def save(self, filepath):
@@ -108,6 +111,10 @@ class MLPPolicyPG(MLPPolicy):
             self.baseline.parameters(),
             self.learning_rate,
         )
+        self.baseline_scheduler = optim.lr_scheduler.ReduceLROnPlateau(self.baseline_optimizer,
+                                                                       factor=0.1,
+                                                                       patience=5,
+                                                                       verbose=True)
 
         self.baseline_loss = nn.MSELoss()
 
@@ -137,6 +144,8 @@ class MLPPolicyPG(MLPPolicy):
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
+        # # lr_scheduler
+        # self.scheduler.step(loss.item())
 
         # TODO: normalize the q_values to have a mean of zero and a standard deviation of one
         targets = utils.normalize(q_values, np.mean(q_values), np.std(q_values))
@@ -158,6 +167,9 @@ class MLPPolicyPG(MLPPolicy):
         self.baseline_optimizer.zero_grad()
         baseline_loss.backward()
         self.baseline_optimizer.step()
+
+        # baseline lr scheduler
+        self.baseline_scheduler.step(baseline_loss.item())
 
         train_log = {'Training Loss': ptu.to_numpy(loss)}
         return train_log

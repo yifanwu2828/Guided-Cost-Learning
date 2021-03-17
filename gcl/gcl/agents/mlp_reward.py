@@ -43,6 +43,10 @@ class MLPReward(nn.Module):
             itertools.chain([self.A, self.b, self.w], self.mlp.parameters()),
             self.learning_rate
         )
+        # self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(self.optimizer,
+        #                                                       factor=0.1,
+        #                                                       patience=5,
+        #                                                       verbose=True)
 
     def forward(self, observation: torch.FloatTensor, action: torch.FloatTensor) -> torch.FloatTensor:
         """
