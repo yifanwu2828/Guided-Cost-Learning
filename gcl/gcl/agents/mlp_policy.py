@@ -1,5 +1,6 @@
 import abc
 import itertools
+from typing import Tuple
 from torch import nn
 from torch.nn import functional as F
 from torch import optim
@@ -56,7 +57,7 @@ class MLPPolicy(BasePolicy, nn.Module, metaclass=abc.ABCMeta):
 
     # query the policy with observation(s) to get selected action(s) 
     # and the corresponding log probability
-    def get_action(self, obs: np.ndarray) -> np.ndarray:
+    def get_action(self, obs: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         if len(obs.shape) > 1:
             observation = obs
         else:
@@ -158,7 +159,7 @@ class MLPPolicyPG(MLPPolicy):
         baseline_loss.backward()
         self.baseline_optimizer.step()
 
-        train_log = {'Training Loss': ptu.to_numpy(loss),}
+        train_log = {'Training Loss': ptu.to_numpy(loss)}
         return train_log
 
     def run_baseline_prediction(self, obs):
@@ -176,10 +177,12 @@ class MLPPolicyPG(MLPPolicy):
         return ptu.to_numpy(predictions)[:, 0]
 
 
+# TODO implement MLPPolicyGPS()
 class MLPPolicyGPS(MLPPolicy):
     """
     Policy that uses guided policy search to update parameters
     """
 
     def __init__(self):
+        super().__init__()
         raise NotImplementedError
