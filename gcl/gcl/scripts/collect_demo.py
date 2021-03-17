@@ -106,13 +106,5 @@ def SAC_demo():
 
 
 if __name__ == '__main__':
-    # selected_demo = input("Select one of the demo: 'PPO','A2C',SAC")
-    # if selected_demo == "PPO":
-    #     PPO_demo()
-    # elif selected_demo =="A2C":
-    #     A2C_demo()
-    # elif selected_demo =="SAC":
-    #     SAC_demo()
-    # else:
-    #     print(f"No option for {selected_demo}")
-    A2C_demo()
+    model = PPO.load("tmp/demo_agent/a2c_nav_env")
+    evaluate(model, num_episodes=100, env_id='NavEnv-v0', render=True)
