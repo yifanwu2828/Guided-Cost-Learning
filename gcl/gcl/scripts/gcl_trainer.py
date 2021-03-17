@@ -1,5 +1,3 @@
-import os
-import sys
 import time
 import pickle
 from collections import OrderedDict
@@ -61,11 +59,11 @@ class GCL_Trainer():
         MAX_VIDEO_LEN = self.params['ep_len']
 
         # Are the observations images?
-        img = len(self.env.observation_space.shape) > 2
+        is_img = len(self.env.observation_space.shape) > 2
 
         # Observation and action sizes
-        ob_dim = self.env.observation_space.shape if img else self.env.observation_space.shape[0]
-        # assume continous action space
+        ob_dim = self.env.observation_space.shape if is_img else self.env.observation_space.shape[0]
+        # assume continuous action space
         ac_dim = self.env.action_space.shape[0]
         self.params['agent_params']['ac_dim'] = ac_dim
         self.params['agent_params']['ob_dim'] = ob_dim
@@ -104,12 +102,12 @@ class GCL_Trainer():
         demo_paths = self.collect_demo_trajectories(expert_data, expert_policy)
         self.agent.add_to_buffer(demo_paths, demo=True)
 
-        train_log_lst = []
-        policy_log_lst = []
-        a, b = [], []
+        train_log_lst, policy_log_lst = [], []
 
         # 2.
-        for itr in tqdm(range(n_iter)):
+        n_iter_loop = tqdm(range(n_iter), leave=False)
+        # n_iter_loop.set_description(f"Guided cost learning")
+        for itr in n_iter_loop:
             print("\n")
             print("********** Iteration {} ************".format(itr))
             # decide if videos should be rendered/logged at this iteration
@@ -137,16 +135,9 @@ class GCL_Trainer():
 
             # 5. Use D_{samp} to update cost c_{\theta}
             reward_logs = self.train_reward()  # Algorithm 2
-            for i in reward_logs:
-                value = float(i['Training reward loss'])
-                train_log_lst.append(value)
 
             # 6. Update q_k(\tau) using D_{traj} and using GPS or PG
             policy_logs = self.train_policy()
-
-            for j in policy_logs:
-                value = float(j['Training Loss'])
-                policy_log_lst.append(value)
 
             # log/save
             if self.log_video or self.logmetrics:
@@ -157,13 +148,19 @@ class GCL_Trainer():
                 if self.params['save_params']:
                     self.agent.save('{}/agent_itr_{}.pt'.format(self.params['logdir'], itr))
 
-            train_log_lst_plt = np.array([float(i['Training reward loss']) for i in reward_logs])
-            print(len(train_log_lst_plt))
-            policy_log_lst_plt = np.array([float(j['Training Loss']) for j in policy_logs])
-            a.append(train_log_lst_plt)
-            b.append(policy_log_lst_plt)
-        # show_plot("All", a, b)
-        return train_log_lst, policy_log_lst, a, b
+            for i, j in zip(reward_logs, policy_logs) :
+                reward_loss = float(i['Training reward loss'])
+                train_log_lst.append(reward_loss)
+                policy_loss = float(j['Training Loss'])
+                policy_log_lst.append(policy_loss)
+
+            train_log_mean = np.array([float(i['Training reward loss']) for i in reward_logs]).mean()
+            policy_log_mean = np.array([float(j['Training Loss']) for j in policy_logs]).mean()
+
+            # update progress bar
+            n_iter_loop.set_postfix(train_log=train_log_mean,
+                                    policy_log=policy_log_mean)
+        return train_log_lst, policy_log_lst
 
     def collect_demo_trajectories(self, expert_data, expert_policy):
         """
@@ -222,7 +219,7 @@ class GCL_Trainer():
         train_video_paths = None
         if self.log_video:
             print('\nCollecting train rollouts to be used for saving videos...')
-            # TODO look in utils and implement sample_n_trajectories -- implemented change reder to True
+            # TODO look in utils and implement sample_n_trajectories -- implemented
             train_video_paths, _ = utils.sample_trajectories(self.env, collect_policy, batch_size,
                                                              agent=self.agent, render=False, )
 
@@ -337,14 +334,3 @@ class GCL_Trainer():
 
             self.logger.flush()
 
-
-def show_plot(itr, train_log_lst, policy_log_lst):
-    import matplotlib.pyplot as plt
-    plt.figure()
-    plt.plot(train_log_lst)
-    plt.title("train "+ itr)
-    plt.show()
-    plt.figure()
-    plt.plot(policy_log_lst)
-    plt.title("policy "+ itr)
-    plt.show()
