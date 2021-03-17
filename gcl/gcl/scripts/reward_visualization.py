@@ -22,6 +22,7 @@ if __name__ == '__main__':
     torch.random.manual_seed(0)
 
     fname = "mlp_reward_nitr15_demo50.pth"
+    # fname = "mlp_reward_nitr30_demo100.pth"
     reward_model = torch.load(fname)
     reward_model.eval()
 
@@ -35,9 +36,7 @@ if __name__ == '__main__':
     log_dict = {"act": [], "obs": [], "mlp_reward": [], "true_reward": []}
     n_step = range(1000)
     for _ in tqdm(n_step):
-        # action, _states = model.predict(obs, deterministic=True)
-        # action = env.action_space.sample()
-        action = np.array(np.random.rand())
+        action, _states = model.predict(obs, deterministic=True)
         log_dict["act"].append(action)
 
         obs, reward, done, info = env.step(action)
@@ -51,7 +50,7 @@ if __name__ == '__main__':
             obs = env.reset()
     env.close()
 
-    mlp_reward = np.array(log_dict["mlp_reward"])# TODO: original plot becomes similar after adding 1
+    mlp_reward = np.array(log_dict["mlp_reward"])+1# TODO: original plot becomes similar after adding 1
     true_reward = np.array(log_dict["true_reward"])
     print(mean_squared_error(true_reward, mlp_reward))
 
@@ -61,8 +60,8 @@ if __name__ == '__main__':
     ax.legend()
     plt.show()
 
-    # f, ax = plt.subplots()
-    # ax.scatter(range(mlp_reward.size), mlp_reward-1, label="mlp_reward")
-    # ax.scatter(range(true_reward.size), true_reward, label="true_reward")
-    # ax.legend()
-    # plt.show()
+    f, ax = plt.subplots()
+    ax.scatter(range(mlp_reward.size), mlp_reward-1, label="mlp_reward")
+    ax.scatter(range(true_reward.size), true_reward, label="true_reward")
+    ax.legend()
+    plt.show()
