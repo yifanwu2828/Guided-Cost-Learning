@@ -3,6 +3,7 @@ import os
 import time
 
 import numpy as np
+import torch
 import matplotlib.pyplot as plt
 
 from gcl_trainer import GCL_Trainer
@@ -45,16 +46,14 @@ class IRL_Trainer():
         self.gcl_trainer = GCL_Trainer(self.params)
 
     def run_training_loop(self):
-        train_log_lst, policy_log_lst, a, b = self.gcl_trainer.run_training_loop(
+        train_log_lst, policy_log_lst = self.gcl_trainer.run_training_loop(
             self.params['n_iter'],
             collect_policy=self.gcl_trainer.agent.actor,
             eval_policy=self.gcl_trainer.agent.actor,
             expert_data=self.params['expert_data'],
             expert_policy=self.params['expert_policy']
         )
-        return train_log_lst, policy_log_lst, a, b
-
-
+        return train_log_lst, policy_log_lst
 
 
 if __name__ == '__main__':
@@ -109,7 +108,7 @@ if __name__ == '__main__':
     parser.add_argument('--seed', type=int, default=1)
     parser.add_argument('--no_gpu', '-ngpu', action='store_true')
     parser.add_argument('--which_gpu', '-gpu_id', default=0)
-    parser.add_argument('--video_log_freq', type=int, default=-1) # -1 not log video
+    parser.add_argument('--video_log_freq', type=int, default=-1)  # -1 not log video
     parser.add_argument('--scalar_log_freq', type=int, default=1)
     parser.add_argument('--save_params', action='store_true')
 
@@ -118,17 +117,9 @@ if __name__ == '__main__':
     # convert to dictionary
     params = vars(args)
 
-    # chage path of pretrain model
+    # change path of pretrain model
     path = os.getcwd()
     # print (os.path.join(path,"tmp", "ppo_nav_env"))
-
-    params["expert_policy"] = os.path.join(path, "tmp/demo_agent", params["expert_policy"])
-    params['n_iter'] = 100
-    params['demo_size'] = 10
-
-    print("##### PARAM ########")
-    print(params)
-
 
     ##################################
     ### CREATE DIRECTORY FOR LOGGING
@@ -149,40 +140,57 @@ if __name__ == '__main__':
     ### RUN TRAINING
     ###################
 
+    print("##### PARAM ########")
+    params["expert_policy"] = os.path.join(path, "tmp/demo_agent", params["expert_policy"])
+    params['n_iter'] = 15
+    # Number of expert rollouts to add to replay buffer
+    params['demo_size'] = 50
+    params['discount'] = 0.99
+    print(params)
+
+    # Number of current policy rollouts to add to replay buffer at each iteration
+    # Number of reward updates per iteration
+    # Number of expert rollouts to sample from replay buffer per reward update
+    # Number of policy rollouts to sample from replay buffer per reward update
+    # Number of policy updates per iteration
+
+    params["batch_size"] = 10
+    params["num_reward_train_steps_per_iter"] = 10
+    params["train_demo_batch_size"] = 10
+    params["train_sample_batch_size"] = 10
+    params["num_policy_train_steps_per_iter"] = 10
+    # params["train_batch_size"]
+
     trainer = IRL_Trainer(params)
     start_train = tic()
-    train_log_lst, policy_log_lst, a, b = trainer.run_training_loop()
+    train_log_lst, policy_log_lst = trainer.run_training_loop()
     toc(start_train)
 
-    mean_reward = []
-    mean_policy = []
-    for i in range(len(a)):
-        mean_reward.append(a[i].mean())
-        mean_policy.append(b[i].mean())
-
-    f1 = plt.figure()
-    plt.plot(mean_reward)
-    plt.show()
-
-    f2 = plt.figure()
-    plt.plot(mean_policy)
-    plt.show()
-
-    f3 = plt.figure()
+    ###################
+    ### Test
+    ###################
+    plt.figure()
     plt.plot(train_log_lst)
-    plt.title("train")
+    plt.title("train_loss")
     # plt.ylim(-5000,500)
-    plt.plot(list(range(len(train_log_lst))), [train_log_lst[0]]*len(train_log_lst))
-    plt.show()
-
-    f4 = plt.figure()
-    plt.plot(train_log_lst)
-    plt.title("train_limit")
-    plt.ylim(-500,500)
     plt.plot(list(range(len(train_log_lst))), [train_log_lst[0]] * len(train_log_lst))
     plt.show()
 
-    f5 = plt.figure()
-    plt.plot(policy_log_lst)
-    plt.title("policy")
+    plt.figure()
+    plt.plot(train_log_lst)
+    plt.title("train_loss_limit")
+    plt.ylim(200, 300)
+    plt.plot(list(range(len(train_log_lst))), [train_log_lst[0]] * len(train_log_lst))
     plt.show()
+
+    plt.figure()
+    plt.plot(policy_log_lst)
+    plt.title("policy_loss")
+    plt.show()
+
+    # saving mlp Reward
+    SAVE = False
+    if SAVE:
+        fname = "mlp_reward_nitr15_demo50.pth"
+        reward_model = trainer.gcl_trainer.agent.reward
+        torch.save(reward_model, fname)
