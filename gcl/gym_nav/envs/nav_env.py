@@ -184,7 +184,7 @@ class NavEnv(gym.Env):
         x = np.linspace(-self.size, self.size, num=num)
         y = np.linspace(-self.size, self.size, num=num)
 
-        # TODO: vectorize this computation
+        # TODO: vectorized this computation
         X, Y = np.meshgrid(x, y)
         Z = np.zeros((num, num))
         for i in range(num):
