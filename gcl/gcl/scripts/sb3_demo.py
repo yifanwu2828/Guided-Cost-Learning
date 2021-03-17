@@ -1,6 +1,5 @@
 import os
 import time
-from typing import Callable
 
 import gym
 import gym_nav
@@ -15,6 +14,7 @@ from stable_baselines3.common.vec_env import DummyVecEnv
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.env_checker import check_env
 from stable_baselines3.common.evaluation import evaluate_policy
+
 
 def evaluate(model, num_episodes=100, env_id = 'NavEnv-v0',):
     """
@@ -64,6 +64,7 @@ def main():
     # Multiprocess :PPO, SAC,A2C
     # #Remain DDPG, HER, TD3
 
+
 def vec_env_training():
     # Create log dir
     log_dir = "tmp/"
@@ -99,6 +100,7 @@ def vec_env_training():
     # mean_reward, std_reward = evaluate_policy(loaded_model, model.get_env(), n_eval_episodes=100)
     mean_reward, std_reward = evaluate(loaded_model, num_episodes=200, env_id='NavEnv-v0')
 
+
 def dummyVecEnv_training():
     env_id = 'NavEnv-v0'
     env = gym.make(env_id)
@@ -122,6 +124,7 @@ def dummyVecEnv_training():
     del model
     loaded_model = SAC.load(save_dir + zip_name)
     mean_reward, std_reward = evaluate(loaded_model, num_episodes=200, env_id = 'NavEnv-v0',)
+
 
 if __name__ == '__main__':
 
