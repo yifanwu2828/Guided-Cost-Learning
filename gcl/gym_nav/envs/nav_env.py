@@ -5,6 +5,7 @@ from gym.utils import seeding
 import numpy as np
 from matplotlib import pyplot as plt
 
+
 class NavEnv(gym.Env):
     """
     2D continuous box environment for navigation
@@ -31,14 +32,14 @@ class NavEnv(gym.Env):
             shape=(self.action_dim,),
             dtype="float32"
         )
-        
-#        # Observations are the 2D reward image and the agent position
-#        self.observation_space = spaces.Box(
-#            low=0,
-#            high=255,
-#            shape=(self.obs_dim, self.obs_dim, 3),
-#            dtype="uint8"
-#        )
+
+        #        # Observations are the 2D reward image and the agent position
+        #        self.observation_space = spaces.Box(
+        #            low=0,
+        #            high=255,
+        #            shape=(self.obs_dim, self.obs_dim, 3),
+        #            dtype="uint8"
+        #        )
         # Observations are the position and velocity
         self.observation_space = spaces.Box(
             low=-self.size,
@@ -67,8 +68,8 @@ class NavEnv(gym.Env):
         self.step_count += 1
         self.update_states(action)
 
-#        # Observation is the reward map with the agent position
-#        obs = self.preprocess_obs(self.pos)
+        #        # Observation is the reward map with the agent position
+        #        obs = self.preprocess_obs(self.pos)
         # Observations are the position and velocity
         obs = np.concatenate((self.pos, self.vel))
         reward = self.eval_reward(self.pos)
@@ -85,7 +86,7 @@ class NavEnv(gym.Env):
         Add the agent position to the reward map
         """
         obs = self.reward_map.copy()
-        agent_idx = ((agent_pos + self.size) / (2 * self.size) * (self.obs_dim-1)).astype(int)
+        agent_idx = ((agent_pos + self.size) / (2 * self.size) * (self.obs_dim - 1)).astype(int)
 
         # Set the agent to be red
         obs[agent_idx[0], agent_idx[1]] = np.array([255, 0, 0])
@@ -104,21 +105,20 @@ class NavEnv(gym.Env):
         self.vel[self.vel > self.size] = self.size
         self.vel[self.vel < -self.size] = -self.size
 
-
     def reset(self):
         """
         Randomly spawn a starting location
         """
         self.pos = np.random.uniform(
-            low=-self.size, 
-            high=self.size, 
+            low=-self.size,
+            high=self.size,
             size=self.pos_dim
         )
-#        self.vel = np.random.uniform(
-#            low=-self.size, 
-#            high=self.size, 
-#            size=self.vel_dim
-#        )
+        #        self.vel = np.random.uniform(
+        #            low=-self.size,
+        #            high=self.size,
+        #            size=self.vel_dim
+        #        )
         self.vel = np.zeros(self.vel_dim)
 
         # Keep track of the position in the current episode
@@ -127,8 +127,8 @@ class NavEnv(gym.Env):
         # Step count since episode start
         self.step_count = 0
 
-#        # Observation is the reward map with the agent position
-#        obs = self.preprocess_obs(self.pos)
+        #        # Observation is the reward map with the agent position
+        #        obs = self.preprocess_obs(self.pos)
         # Observations are the position and velocity
         obs = np.concatenate((self.pos, self.vel))
 
@@ -151,13 +151,12 @@ class NavEnv(gym.Env):
             self.window.set_caption(self.mission)
 
         elif mode == 'rgb_array':
-            return img 
-
+            return img
 
     def close(self):
         if self.window:
             self.window.close()
-        return 
+        return
 
     def init_reward(self):
         """
@@ -166,12 +165,12 @@ class NavEnv(gym.Env):
         """
 
         self.mixtures = {
-            'mu': [np.zeros(self.pos_dim), 
-                   np.array([self.size/3, self.size/3]), 
-                   np.array([self.size/3, -self.size/3]),
-                   np.array([-self.size/3, self.size/3]), 
-                   np.array([-self.size/3, -self.size/3])],
-            'std': [self.size, 
+            'mu': [np.zeros(self.pos_dim),
+                   np.array([self.size / 3, self.size / 3]),
+                   np.array([self.size / 3, -self.size / 3]),
+                   np.array([-self.size / 3, self.size / 3]),
+                   np.array([-self.size / 3, -self.size / 3])],
+            'std': [self.size,
                     self.size / 6,
                     self.size / 6,
                     self.size / 6,
@@ -183,13 +182,12 @@ class NavEnv(gym.Env):
         num = self.obs_dim
         x = np.linspace(-self.size, self.size, num=num)
         y = np.linspace(-self.size, self.size, num=num)
-
         # TODO: vectorized this computation
         X, Y = np.meshgrid(x, y)
         Z = np.zeros((num, num))
         for i in range(num):
             for j in range(num):
-                Z[i,j] = self.eval_gaussian(np.array([X[i,j], Y[i,j]]))
+                Z[i, j] = self.eval_gaussian(np.array([X[i, j], Y[i, j]]))
         # rescale values to [0, 255]
         self.reward_min, self.reward_max = np.min(Z), np.max(Z)
         Z = ((Z - self.reward_min) / (self.reward_max - self.reward_min) * 255).astype(np.uint8)
@@ -199,10 +197,10 @@ class NavEnv(gym.Env):
     def eval_gaussian(self, x):
         """
         Evaluate the value of mixture of gaussian functions at location x
-        """ 
+        """
         ans = 0
         for mu, std, A in zip(self.mixtures['mu'], self.mixtures['std'], self.mixtures['A']):
-            ans += A * np.exp(-(x - mu).T @ (x - mu) / (2 * std**2))
+            ans += A * np.exp(-(x - mu).T @ (x - mu) / (2 * std ** 2))
         return ans
 
     def eval_reward(self, x):
