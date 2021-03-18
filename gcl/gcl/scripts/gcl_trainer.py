@@ -1,16 +1,14 @@
-import time
 import pickle
+import time
 from collections import OrderedDict
 
 import gym
-import gym_nav
 import numpy as np
-import torch
-from tqdm import tqdm
-
 import pytorch_util as ptu
+import torch
 import utils
 from logger import Logger
+from tqdm import tqdm
 
 # set overflow warning to error instead
 np.seterr(all='raise')
@@ -159,7 +157,11 @@ class GCL_Trainer():
 
             # update progress bar
             n_iter_loop.set_postfix(train_log=train_log_mean,
-                                    policy_log=policy_log_mean)
+                                    policy_log=policy_log_mean,
+                                    w=float(self.agent.reward.w),
+                                    r=self.agent.reward.r)
+
+
         return train_log_lst, policy_log_lst
 
     def collect_demo_trajectories(self, expert_data, expert_policy):
@@ -188,7 +190,7 @@ class GCL_Trainer():
                 then import based on the indicator
                 Do 3 example first, train and save the parameter
             '''
-            from stable_baselines3 import PPO, A2C
+            from stable_baselines3 import PPO
             expert_policy = PPO.load(expert_policy)
             print('\nRunning expert policy to collect demonstrations...')
             demo_paths, _ = utils.sample_trajectories(
