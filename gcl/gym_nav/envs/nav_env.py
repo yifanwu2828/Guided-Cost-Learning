@@ -76,7 +76,9 @@ class NavEnv(gym.Env):
         self.pos_list.append(self.pos.copy())
 
         done = False
-        if self.step_count >= self.max_steps:
+        done_cond = abs(self.pos[0])<= 5e-3 and abs(self.pos[1])<= 5e-3
+        terminate_cond = self.step_count >= self.max_steps
+        if done_cond or terminate_cond:
             done = True
 
         return obs, reward, done, {}
