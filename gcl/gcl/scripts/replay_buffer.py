@@ -1,6 +1,7 @@
 import utils
 import numpy as np 
 
+
 class ReplayBuffer(object):
 
     def __init__(self, max_size=100000):
