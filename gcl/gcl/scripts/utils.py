@@ -3,7 +3,7 @@ import time
 import torch
 
 
-############################################
+########################################################################################
 def tic(message=None):
     if message:
         print(message)
@@ -16,7 +16,7 @@ def toc(t_start, name="Operation"):
     print(f'\n############ {name} took: {(time.time() - t_start):.4f} sec. ############\n')
 
 
-############################################
+########################################################################################
 
 def sample_trajectory(env, policy, agent, render=False, render_mode=('rgb_array'), expert=False):
     # initialize env for the beginning of a new rollout
@@ -25,7 +25,6 @@ def sample_trajectory(env, policy, agent, render=False, render_mode=('rgb_array'
     # init vars
     obs, acs, log_probs, rewards, next_obs, terminals, image_obs = [], [], [], [], [], [], []
     steps = 0
-    true_reward = []
     while True:
 
         # render image of the simulated env
@@ -57,15 +56,15 @@ def sample_trajectory(env, policy, agent, render=False, render_mode=('rgb_array'
         steps += 1
         next_obs.append(ob)
 
-        if expert:
+        if expert:          # should expert using true reward?
             rewards.append(rew)
         else:
             # not running on gpu which is slow
             rewards.append(agent.reward.forward(torch.from_numpy(ob).float(),
                                                 torch.from_numpy(ac).float()).detach().numpy())
-        # true_rewards.append()
-        # end the rollout if the rollout ended
-        # HINT: rollout can end due to done, or due to max_path_length
+
+
+        # end the rollout if (rollout can end due to done, or due to max_path_length)
         rollout_done = 0
         if done or steps >= env.max_steps:
             rollout_done = 1  # HINT: this is either 0 or 1
