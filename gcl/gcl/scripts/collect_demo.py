@@ -1,3 +1,4 @@
+import time
 import gym
 import gym_nav
 
@@ -71,25 +72,30 @@ def A2C_demo():
 def PPO_demo():
     print("################# Collecting PPO Demo #################")
     # Parallel environments
-    # env = make_vec_env('NavEnv-v0', n_envs=6)
-    # model = PPO(MlpPolicy, env, verbose=1,learning_rate=3e-4)
-    # start_time = time.time()
-    # model.learn(total_timesteps=2e5)
-    # print("Finsih in {}".format(time.time() - start_time))
+    env = make_vec_env('NavEnv-v0', n_envs=6)
+    model = PPO(MlpPolicy, env, verbose=1, learning_rate=3e-4)
+    start_time = time.time()
+    model.learn(total_timesteps=250000)
+    print(f"Finish in {(time.time() - start_time)}")
 
     # Save model
-    # model.save("ppo_nav_env")
-    model = PPO.load("tmp/demo_agent/ppo_nav_env")
+    model.save("ppo_nav_env")
+    # model = PPO.load("tmp/demo_agent/ppo_nav_env")
+    model = PPO.load("ppo_nav_env")
     evaluate(model, num_episodes=200, env_id='NavEnv-v0')
 
     env = gym.make('NavEnv-v0')
     obs = env.reset()
-    for _ in range(5000):
+    t=-1
+    for i in range(5000):
         action, _states = model.predict(obs, deterministic=True)
         obs, reward, done, info = env.step(action)
         env.render()
         if done:
+            print(env.pos)
             obs = env.reset()
+            print(f"itr:{i}, step:{int(i - t)} -> done :{done}")
+            t = i
     env.close()
 
 
@@ -106,5 +112,4 @@ def SAC_demo():
 
 
 if __name__ == '__main__':
-    model = PPO.load("tmp/demo_agent/a2c_nav_env")
-    evaluate(model, num_episodes=100, env_id='NavEnv-v0', render=True)
+    PPO_demo()
