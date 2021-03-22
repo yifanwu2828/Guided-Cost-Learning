@@ -10,9 +10,6 @@ import utils
 from logger import Logger
 from tqdm import tqdm
 
-# set overflow warning to error instead
-np.seterr(all='raise')
-torch.autograd.set_detect_anomaly(True)
 
 # how many rollouts to save as videos to tensorboard
 MAX_NVIDEO = 2
@@ -96,6 +93,9 @@ class GCL_Trainer():
         self.total_envsteps = 0
         self.start_time = time.time()
 
+        '''D_demo: self.agent.demo_buffer.add_rollouts(paths)
+           D_samp: self.agent.sample_buffer.add_rollouts(paths)
+        '''
         # add demonstrations to replay buffer
         demo_paths = self.collect_demo_trajectories(expert_data, expert_policy)
         self.agent.add_to_buffer(demo_paths, demo=True)
@@ -159,8 +159,7 @@ class GCL_Trainer():
             n_iter_loop.set_postfix(train_log=train_log_mean,
                                     policy_log=policy_log_mean,
                                     w=float(self.agent.reward.w),
-                                    r=self.agent.reward.r)
-
+                                    )
 
         return train_log_lst, policy_log_lst
 
@@ -214,7 +213,6 @@ class GCL_Trainer():
             train_video_paths: paths which also contain videos for visualization purposes
         """
         print("\nCollecting sample trajectories to be used for training...")
-        # self.agent.reward()
         paths, envsteps_this_batch = utils.sample_trajectories(self.env, collect_policy, batch_size,
                                                                agent=self.agent)
 
@@ -222,8 +220,7 @@ class GCL_Trainer():
         if self.log_video:
             print('\nCollecting train rollouts to be used for saving videos...')
             # TODO look in utils and implement sample_n_trajectories -- implemented
-            train_video_paths, _ = utils.sample_trajectories(self.env, collect_policy, batch_size,
-                                                             agent=self.agent, render=False, )
+            pass
 
         # TODO: add logging
         if self.logmetrics:
