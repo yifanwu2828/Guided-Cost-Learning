@@ -5,7 +5,8 @@ import time
 import numpy as np
 import torch
 import matplotlib.pyplot as plt
-
+import gym
+import gym_nav
 from gcl_trainer import GCL_Trainer
 from gcl.agents.gcl_agent import GCL_Agent
 from utils import tic, toc
@@ -56,7 +57,23 @@ class IRL_Trainer():
         return train_log_lst, policy_log_lst
 
 
+def removeOutliers(x, outlierConstant=1.5):
+    a = np.array(x)
+    upper_quartile = np.percentile(a, 75)
+    lower_quartile = np.percentile(a, 25)
+    IQR = (upper_quartile - lower_quartile) * outlierConstant
+    quartileSet = (lower_quartile - IQR, upper_quartile + IQR)
+
+    result = a[np.where((a >= quartileSet[0]) & (a <= quartileSet[1]))]
+
+    return result.tolist()
+
+
 if __name__ == '__main__':
+    # set overflow warning to error instead
+    np.seterr(all='raise')
+    torch.autograd.set_detect_anomaly(True)
+
     parser = argparse.ArgumentParser()
     parser.add_argument('--env_name', type=str, default='NavEnv-v0')
     parser.add_argument('--exp_name', type=str, default='nav_env_irl')
@@ -109,7 +126,7 @@ if __name__ == '__main__':
     parser.add_argument('--no_gpu', '-ngpu', action='store_true')
     parser.add_argument('--which_gpu', '-gpu_id', default=0)
     parser.add_argument('--video_log_freq', type=int, default=-1)  # -1 not log video
-    parser.add_argument('--scalar_log_freq', type=int, default=1)
+    parser.add_argument('--scalar_log_freq', type=int, default=-1)
     parser.add_argument('--save_params', action='store_true')
 
     args = parser.parse_args()
@@ -139,27 +156,31 @@ if __name__ == '__main__':
     ###################
     ### RUN TRAINING
     ###################
-
     print("##### PARAM ########")
-    params["expert_policy"] = os.path.join(path, "tmp/demo_agent", params["expert_policy"])
-    params['n_iter'] = 15
+    # params["expert_policy"] = os.path.join(path, "tmp/demo_agent", params["expert_policy"])
+    params["expert_policy"] = os.path.join(path, "tmp/demo_agent", "a2c_nav_env")
+    params['n_iter'] = 20
     # Number of expert rollouts to add to replay buffer
-    params['demo_size'] = 50
+    params['demo_size'] = 100
     params['discount'] = 0.99
+    params["learning_rate"] = 5e-3
     print(params)
 
     # Number of current policy rollouts to add to replay buffer at each iteration
     # Number of reward updates per iteration
+    # Number of policy updates per iteration
     # Number of expert rollouts to sample from replay buffer per reward update
     # Number of policy rollouts to sample from replay buffer per reward update
-    # Number of policy updates per iteration
+    # Number of transition steps to sample from replay buffer per policy update PG
 
-    params["batch_size"] = 10
-    params["num_reward_train_steps_per_iter"] = 10
-    params["train_demo_batch_size"] = 10
-    params["train_sample_batch_size"] = 10
-    params["num_policy_train_steps_per_iter"] = 10
-    # params["train_batch_size"]
+    params["batch_size"] = 20
+    params["num_reward_train_steps_per_iter"] = 10  # K_r
+    params["num_policy_train_steps_per_iter"] = 10  # K_p
+    params["train_demo_batch_size"] = 100
+    params["train_sample_batch_size"] = 100
+    params["train_batch_size"] = 1000
+
+
 
     trainer = IRL_Trainer(params)
     start_train = tic()
@@ -169,6 +190,15 @@ if __name__ == '__main__':
     ###################
     ### Test
     ###################
+
+    res = removeOutliers(train_log_lst)
+    plt.figure()
+    plt.plot(res)
+    plt.title("train_loss without outlier")
+    # plt.ylim(-5000,500)
+    plt.plot(list(range(len(train_log_lst))), [train_log_lst[0]] * len(train_log_lst))
+    plt.show()
+
     plt.figure()
     plt.plot(train_log_lst)
     plt.title("train_loss")
@@ -176,12 +206,12 @@ if __name__ == '__main__':
     plt.plot(list(range(len(train_log_lst))), [train_log_lst[0]] * len(train_log_lst))
     plt.show()
 
-    plt.figure()
-    plt.plot(train_log_lst)
-    plt.title("train_loss_limit")
-    plt.ylim(200, 300)
-    plt.plot(list(range(len(train_log_lst))), [train_log_lst[0]] * len(train_log_lst))
-    plt.show()
+    # plt.figure()
+    # plt.plot(train_log_lst)
+    # plt.title("train_loss_limit")
+    # plt.ylim(-1000, 1000)
+    # plt.plot(list(range(len(train_log_lst))), [train_log_lst[0]] * len(train_log_lst))
+    # plt.show()
 
     plt.figure()
     plt.plot(policy_log_lst)
@@ -189,8 +219,12 @@ if __name__ == '__main__':
     plt.show()
 
     # saving mlp Reward
-    SAVE = False
+    SAVE = True
     if SAVE:
-        fname = "mlp_reward_nitr15_demo50.pth"
+        fname1 = "test_reward2.pth"
         reward_model = trainer.gcl_trainer.agent.reward
-        torch.save(reward_model, fname)
+        torch.save(reward_model, fname1)
+
+        fname2 = "test_policy2.pth"
+        policy_model = trainer.gcl_trainer.agent.actor
+        torch.save(policy_model, fname2)
