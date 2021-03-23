@@ -76,7 +76,7 @@ class NavEnv(gym.Env):
         self.pos_list.append(self.pos.copy())
 
         done = False
-        done_cond = abs(self.pos[0])<= 5e-3 and abs(self.pos[1])<= 5e-3
+        done_cond = abs(self.pos[0])<= 1e-2 and abs(self.pos[1])<= 1e-2
         terminate_cond = self.step_count >= self.max_steps
         if done_cond or terminate_cond:
             done = True
@@ -212,6 +212,9 @@ class NavEnv(gym.Env):
         reward = self.eval_gaussian(x)
 
         # shape reward to [-1, 1] to assist learning
-        reward = (reward - self.reward_min) / (self.reward_max - self.reward_min) * 2 - 1
-
-        return reward
+        # reward = (reward - self.reward_min) / (self.reward_max - self.reward_min) * 2 - 1
+        # shape reward to [-1, 0] to assist learning
+        reward_std = (reward - self.reward_min) / (self.reward_max - self.reward_min)
+        min_val, max_val = (-1, 0)
+        scale_reward = reward_std * (max_val - min_val) + min_val
+        return scale_reward
