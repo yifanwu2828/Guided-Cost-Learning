@@ -62,7 +62,7 @@ if __name__ == '__main__':
     '''TEST LEARNING REWARD'''
     if VISUAL:
         obs = env.reset()
-        n_step = range(1000)
+        n_step = range(500)
         for _ in tqdm(n_step):
             action, _states = model.predict(obs, deterministic=True)
             obs, reward, done, info = env.step(action)
@@ -80,7 +80,7 @@ if __name__ == '__main__':
         mlp_reward = np.array(reward_log_dict["mlp_reward"])
         true_reward = np.array(reward_log_dict["true_reward"])
 
-        scaler = preprocessing.MinMaxScaler(feature_range=(-1, 1))
+        scaler = preprocessing.MinMaxScaler(feature_range=(-1, 0))
         scaler.fit(mlp_reward.reshape(-1, 1))
         scaled_reward = scaler.transform(mlp_reward.reshape(-1, 1))
         f, ax = plt.subplots()
@@ -143,10 +143,10 @@ if __name__ == '__main__':
         # scaler = preprocessing.MinMaxScaler(feature_range=(-1, 1))
         # scaler.fit(Z)
         # Z = (scaler.transform(Z)*255).astype(np.uint8)
-        print(rew_lst)
+        # print(rew_lst)
         reward_min, reward_max = np.min(Z), np.max(Z)
         print(reward_min, reward_max)
-        Z = ((Z - reward_min) / (reward_max - reward_min) * 255 + 0).astype(np.uint8)
+        Z = ((Z - reward_min) / (reward_max - reward_min) * 255).astype(np.uint8)
         print(Z)
         reward_map = np.stack((Z, Z, Z), axis=-1)
         plt.imshow(reward_map)
