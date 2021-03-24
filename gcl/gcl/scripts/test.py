@@ -158,8 +158,8 @@ if __name__ == '__main__':
     ###################
     print("##### PARAM ########")
     # params["expert_policy"] = os.path.join(path, "tmp/demo_agent", params["expert_policy"])
-    params["expert_policy"] = os.path.join(path, "tmp/demo_agent", "a2c_nav_env")
-    params['n_iter'] = 20
+    params["expert_policy"] = os.path.join(path, "ppo_nav_env")
+    params['n_iter'] = 50
     # Number of expert rollouts to add to replay buffer
     params['demo_size'] = 100
     params['discount'] = 0.99
@@ -173,7 +173,7 @@ if __name__ == '__main__':
     # Number of policy rollouts to sample from replay buffer per reward update
     # Number of transition steps to sample from replay buffer per policy update PG
 
-    params["batch_size"] = 20
+    params["batch_size"] = 15
     params["num_reward_train_steps_per_iter"] = 10  # K_r
     params["num_policy_train_steps_per_iter"] = 10  # K_p
     params["train_demo_batch_size"] = 100
@@ -206,12 +206,6 @@ if __name__ == '__main__':
     plt.plot(list(range(len(train_log_lst))), [train_log_lst[0]] * len(train_log_lst))
     plt.show()
 
-    # plt.figure()
-    # plt.plot(train_log_lst)
-    # plt.title("train_loss_limit")
-    # plt.ylim(-1000, 1000)
-    # plt.plot(list(range(len(train_log_lst))), [train_log_lst[0]] * len(train_log_lst))
-    # plt.show()
 
     plt.figure()
     plt.plot(policy_log_lst)
