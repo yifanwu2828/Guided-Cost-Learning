@@ -37,8 +37,8 @@ class GCL_Agent(BaseAgent):
         )
 
         # Replay buffers: demo holds expert demonstrations and sample holds policy samples
-        self.demo_buffer = ReplayBuffer(1000)
-        self.sample_buffer = ReplayBuffer(1000)
+        self.demo_buffer = ReplayBuffer(100000)
+        self.sample_buffer = ReplayBuffer(100000)
 
     def train_reward(self, demo_batch, sample_batch):
         """
