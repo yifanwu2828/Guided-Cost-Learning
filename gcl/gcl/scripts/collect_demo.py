@@ -73,9 +73,9 @@ def PPO_demo():
     print("################# Collecting PPO Demo #################")
     # Parallel environments
     env = make_vec_env('NavEnv-v0', n_envs=6)
-    model = PPO(MlpPolicy, env, verbose=1, learning_rate=3e-4)
+    model = PPO(MlpPolicy, env, verbose=1, learning_rate=2e-3)
     start_time = time.time()
-    model.learn(total_timesteps=250000)
+    model.learn(total_timesteps=400000)
     print(f"Finish in {(time.time() - start_time)}")
 
     # Save model
@@ -87,7 +87,7 @@ def PPO_demo():
     env = gym.make('NavEnv-v0')
     obs = env.reset()
     t=-1
-    for i in range(5000):
+    for i in range(1000):
         action, _states = model.predict(obs, deterministic=True)
         obs, reward, done, info = env.step(action)
         env.render()
