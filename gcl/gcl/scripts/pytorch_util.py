@@ -17,6 +17,23 @@ _str_to_activation = {
 }
 
 
+class PMILayer(nn.Module):
+    """ Custom Identity and negative identity layer """
+    def __init__(self, size_in):
+        super().__init__()
+        self.size_in, self.size_out = size_in, size_in*2
+        I = torch.eye(size_in)
+        weights = torch.vstack((I, -I))
+        self.weights = nn.Parameter(weights, requires_grad=True)  # nn.Parameter is a Tensor that's a module parameter.
+
+
+    def forward(self, x):
+        w_times_x= torch.matmul(x, self.weights.t())
+        return w_times_x
+
+
+
+
 def build_mlp(
         input_size: int,
         output_size: int,
@@ -63,8 +80,8 @@ def build_mlp_yt(
         output_size: int,
         n_layers: int,
         size: int,
-        activation: Activation = 'tanh',
-        output_activation: Activation = 'identity',
+        activation: Activation = 'identity',
+        output_activation: Activation = 'relu',
 ) -> nn.Module:
     """
         Builds a feedforward neural network
@@ -91,14 +108,15 @@ def build_mlp_yt(
     layers = []
     in_size = input_size
 
-    layers.append(nn.Linear(in_size, size))
+    pmi_layer = PMILayer(in_size)
+    layers.append(pmi_layer)
     layers.append(activation)
-    in_size = size
+    in_size = in_size*2
 
-    layers.append(nn.Linear(in_size, size))
-    layers.append(activation)
-    in_size = size
-
+    for _ in range(n_layers):
+        layers.append(nn.Linear(in_size, size))
+        layers.append(activation)
+        in_size = size
     layers.append(nn.Linear(in_size, output_size))
     layers.append(output_activation)
     return nn.Sequential(*layers)
