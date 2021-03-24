@@ -103,8 +103,7 @@ class GCL_Trainer():
         train_log_lst, policy_log_lst = [], []
 
         # 2.
-        n_iter_loop = tqdm(range(n_iter), leave=False)
-        # n_iter_loop.set_description(f"Guided cost learning")
+        n_iter_loop = tqdm(range(n_iter), desc="Guided cost learning", leave=False)
         for itr in n_iter_loop:
             print("\n")
             print("********** Iteration {} ************".format(itr))
@@ -146,20 +145,17 @@ class GCL_Trainer():
                 if self.params['save_params']:
                     self.agent.save('{}/agent_itr_{}.pt'.format(self.params['logdir'], itr))
 
-            for i, j in zip(reward_logs, policy_logs) :
+            for i, j in zip(reward_logs, policy_logs):
                 reward_loss = float(i['Training reward loss'])
                 train_log_lst.append(reward_loss)
                 policy_loss = float(j['Training Loss'])
                 policy_log_lst.append(policy_loss)
 
-            train_log_mean = np.array([float(i['Training reward loss']) for i in reward_logs]).mean()
-            policy_log_mean = np.array([float(j['Training Loss']) for j in policy_logs]).mean()
-
             # update progress bar
-            n_iter_loop.set_postfix(train_log=train_log_mean,
-                                    policy_log=policy_log_mean,
-                                    w=float(self.agent.reward.w),
-                                    )
+            # n_iter_loop.set_postfix(train_log=train_log_mean,
+            #                         policy_log=policy_log_mean,
+            #                         w=float(self.agent.reward.w),
+            #                         )
 
         return train_log_lst, policy_log_lst
 
@@ -177,7 +173,7 @@ class GCL_Trainer():
             print('\nLoading saved demonstrations...')
 
             with open(expert_data, 'rb') as f:
-                # TODO: load data may not through pickel
+                # TODO: load data may not through pickle
                 demo_paths = pickle.load(f)
             # TODO: sample self.params['demo_size'] from demo_paths -- implemented
             return demo_paths[: self.params['demo_size']]
@@ -235,7 +231,10 @@ class GCL_Trainer():
         """
         print("\nUpdating reward parameters...")
         reward_logs = []
-        for k in range(self.params['num_reward_train_steps_per_iter']):
+        K_train_reward_loop = tqdm(range(self.params['num_reward_train_steps_per_iter']),
+                                   desc="reward_update",
+                                   leave=False)
+        for k_rew in K_train_reward_loop:
             # Sample demonstration batch D^_{demo} \subset D_{demo}
             demo_batch = self.agent.sample_rollouts(self.params['train_demo_batch_size'], demo=True)
             # Sample background batch D^_{samp} \subset D_{sample}
@@ -246,6 +245,10 @@ class GCL_Trainer():
             # Update parameters θ using gradient dL_{ioc}/dθ (θ)
             reward_log = self.agent.train_reward(demo_batch, sample_batch)
             reward_logs.append(reward_log)
+
+            K_train_reward_loop.set_postfix(K_rew=k_rew,
+                                            reward_loss=reward_log["Training reward loss"],
+                                            w=self.agent.reward.w.item())
         return reward_logs
 
     
@@ -254,13 +257,19 @@ class GCL_Trainer():
         Guided policy search or PG
         """
         print('\nTraining agent using sampled data from replay buffer...')
-        train_logs = []
-        for train_step in range(self.params['num_policy_train_steps_per_iter']):
+        train_policy_logs = []
+        K_train_policy_loop = tqdm(range(self.params['num_policy_train_steps_per_iter']),
+                                   desc="policy_update",
+                                   leave=False)
+        for k_ply in K_train_policy_loop:
             ob_batch, ac_batch, re_batch, next_ob_batch, terminal_batch = self.agent.sample(
                 self.params['train_batch_size'])
-            train_log = self.agent.train_policy(ob_batch, ac_batch, re_batch, next_ob_batch, terminal_batch)
-            train_logs.append(train_log)
-        return train_logs
+            policy_loss = self.agent.train_policy(ob_batch, ac_batch, re_batch, next_ob_batch, terminal_batch)
+            train_policy_logs.append(policy_loss)
+            K_train_policy_loop.set_postfix(K_ply=k_ply,
+                                            policy_loss=policy_loss["Training Loss"],
+                                            )
+        return train_policy_logs
 
     def perform_logging(self, itr, paths, eval_policy, train_video_paths, reward_logs, policy_logs):
 
