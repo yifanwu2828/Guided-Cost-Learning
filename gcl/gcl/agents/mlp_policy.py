@@ -45,7 +45,8 @@ class MLPPolicy(BasePolicy, nn.Module, metaclass=abc.ABCMeta):
         self.logstd.to(ptu.device)
         self.optimizer = optim.Adam(
             itertools.chain([self.logstd], self.mean_net.parameters()),
-            self.learning_rate
+            # lr=self.learning_rate
+            lr=1e-3
         )
         # self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(self.optimizer,
         #                                                       factor=0.1,
@@ -100,6 +101,7 @@ class MLPPolicyPG(MLPPolicy):
     def __init__(self, ac_dim, ob_dim, n_layers, size, **kwargs):
         super().__init__(ac_dim, ob_dim, n_layers, size, **kwargs)
 
+        # Baseline
         self.baseline = ptu.build_mlp(
             input_size=self.ob_dim,
             output_size=1,
@@ -111,11 +113,6 @@ class MLPPolicyPG(MLPPolicy):
             self.baseline.parameters(),
             self.learning_rate,
         )
-        self.baseline_scheduler = optim.lr_scheduler.ReduceLROnPlateau(self.baseline_optimizer,
-                                                                       factor=0.1,
-                                                                       patience=5,
-                                                                       verbose=True)
-
         self.baseline_loss = nn.MSELoss()
 
     def update(self, observations, actions, advantages, q_values=None):
@@ -138,38 +135,30 @@ class MLPPolicyPG(MLPPolicy):
         # log_prob is negative
         # advantage = Q-V should be positive indicate the traj is better than average of traj
         loss = -torch.mean(log_prob * advantages)
-
-        # TODO: optimize `loss` using `self.optimizer`
-
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
+
         # # lr_scheduler
         # self.scheduler.step(loss.item())
 
+        # apply baseline to reduce variance
         # TODO: normalize the q_values to have a mean of zero and a standard deviation of one
         targets = utils.normalize(q_values, np.mean(q_values), np.std(q_values))
         targets = ptu.from_numpy(targets)
 
         # TODO: use the `forward` method of `self.baseline` to get baseline predictions
-        baseline_predictions = torch.squeeze(self.baseline(observations))
-
         # avoid any subtle broadcasting bugs that can arise when dealing with arrays of shape
         # [ N ] versus shape [ N x 1 ]
         # HINT: you can use `squeeze` on torch tensors to remove dimensions of size 1
+        baseline_predictions = torch.squeeze(self.baseline(observations))
         assert baseline_predictions.shape == targets.shape
 
         # TODO: compute the loss that should be optimized for training the baseline MLP (`self.baseline`)
-        # HINT: use `F.mse_loss`
         baseline_loss = F.mse_loss(targets, baseline_predictions)
-
-        # TODO: optimize `baseline_loss` using `self.baseline_optimizer`
         self.baseline_optimizer.zero_grad()
         baseline_loss.backward()
         self.baseline_optimizer.step()
-
-        # baseline lr scheduler
-        self.baseline_scheduler.step(baseline_loss.item())
 
         train_log = {'Training Loss': ptu.to_numpy(loss)}
         return train_log
@@ -190,11 +179,11 @@ class MLPPolicyPG(MLPPolicy):
 
 
 # TODO implement MLPPolicyGPS()
-class MLPPolicyGPS(MLPPolicy):
-    """
-    Policy that uses guided policy search to update parameters
-    """
-
-    def __init__(self):
-        super().__init__()
-        raise NotImplementedError
+# class MLPPolicyGPS(MLPPolicy):
+#     """
+#     Policy that uses guided policy search to update parameters
+#     """
+#
+#     def __init__(self):
+#         super().__init__()
+#         raise NotImplementedError
