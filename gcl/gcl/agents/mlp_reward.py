@@ -2,7 +2,7 @@ import itertools
 import torch
 from torch import nn
 from torch import optim
-
+import torch.nn.functional as F
 from gcl.scripts import pytorch_util as ptu
 
 
@@ -26,27 +26,34 @@ class MLPReward(nn.Module):
             output_size=self.output_size,
             n_layers=self.n_layers,
             size=self.size,
-            activation='relu'
+            activation='identity',
+            output_activation='relu'
         )
         self.A = nn.Parameter(
-            torch.zeros(self.output_size, self.output_size, dtype=torch.float32, device=ptu.device)
+            torch.ones(self.output_size, self.output_size, dtype=torch.float32, device=ptu.device)
         )
         self.b = nn.Parameter(
-            torch.zeros(self.output_size, dtype=torch.float32, device=ptu.device)
+            torch.ones(self.output_size, dtype=torch.float32, device=ptu.device)
         )
         # GCL says this is not learnable but I did not find its value
         self.w = nn.Parameter(
-            torch.zeros(1, dtype=torch.float32, device=ptu.device)
+            torch.ones(1, dtype=torch.float32, device=ptu.device)
         )
 
         self.optimizer = optim.Adam(
-            itertools.chain([self.A, self.b, self.w], self.mlp.parameters()),
-            self.learning_rate
+            [
+                {'params': self.A, 'lr': 5e-3},
+                {'params': self.b, 'lr': 5e-3},
+                {'params': self.w, 'lr': 5e-3},
+                {'params': self.mlp.parameters()}
+            ],
+            lr=self.learning_rate
         )
-        # self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(self.optimizer,
-        #                                                       factor=0.1,
-        #                                                       patience=5,
-        #                                                       verbose=True)
+        self.scheduler =torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer,
+                                                                   mode='min',
+                                                                   factor=0.5,
+                                                                   patience=3)
+
 
     def forward(self, observation: torch.FloatTensor, action: torch.FloatTensor) -> torch.FloatTensor:
         """
@@ -56,6 +63,7 @@ class MLPReward(nn.Module):
         y = self.mlp(observation)
         z = torch.matmul(y, self.A) + self.b
         r = -(z * z).sum(-1) - self.w * (action * action).sum(-1)
+        # print(r)
         return r
 
     def update(self, demo_obs, demo_acs, sample_obs, sample_acs, log_probs):
@@ -76,19 +84,37 @@ class MLPReward(nn.Module):
         sample_acs = ptu.from_numpy(sample_acs)
         log_probs = torch.squeeze(ptu.from_numpy(log_probs), dim=-1)
 
+        sum_log_probs = log_probs.sum(-1)
+        
         demo_return = self(demo_obs, demo_acs).sum(-1)
         sample_return = self(sample_obs, sample_acs).sum(-1)
-        # using 1/N sum_{i=1}^N return(tau_i) - log 1/M (sum_j exp(return(tau_j)) / prod_t pi(a_t|s_t) )
-        w = sample_return - torch.sum(log_probs, dim=1)
-        w_max = torch.max(w)
+        '''
+        wj  = exp(sum(r)) / prod(exp(log_prob))
+            = exp(sum(r)) / exp(sum(log_prob))
+            = exp(sum(r) - sum(log_prob))   Let sum(r) - sum(log_prob) be x = [x1, ...xj]
+        -> exp
+        importance weights = wj/sum(wj)
+        '''
+        x = sample_return - sum_log_probs
+        weights = torch.exp(x-torch.logsumexp(x, -1))
 
-        # TODO: Use importance sampling to estimate sample return 
-        # trick to avoid overflow: log(exp(x1) + exp(x2)) = x + log(exp(x1-x) + exp(x2-x)) where x = max(x1, x2)
-        loss = -torch.mean(demo_return) + torch.log(torch.sum(torch.exp(w - w_max))) + w_max
+        demo_loss = torch.mean(demo_return)
+        sample_loss = torch.sum(weights * sample_return)
+        loss = -demo_loss + sample_loss
+
+        # # using 1/N sum_{i=1}^N return(tau_i) - log 1/M (sum_j exp(return(tau_j)) / prod_t pi(a_t|s_t) )
+        # w = sample_return - torch.sum(log_probs, dim=1)
+        # w_max = torch.max(w)
+        #
+        # # TODO: Use importance sampling to estimate sample return
+        # # trick to avoid overflow: log(exp(x1) + exp(x2)) = x + log(exp(x1-x) + exp(x2-x)) where x = max(x1, x2)
+        # loss = -torch.mean(demo_return) + torch.log(torch.sum(torch.exp(w - w_max))) + w_max
 
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
+
+        self.scheduler.step(loss)
 
         train_reward_log = {"Training reward loss": ptu.to_numpy(loss)}
         return train_reward_log
