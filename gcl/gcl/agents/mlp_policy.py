@@ -45,13 +45,9 @@ class MLPPolicy(BasePolicy, nn.Module, metaclass=abc.ABCMeta):
         self.logstd.to(ptu.device)
         self.optimizer = optim.Adam(
             itertools.chain([self.logstd], self.mean_net.parameters()),
-            # lr=self.learning_rate
-            lr=1e-3
+            lr=self.learning_rate
+
         )
-        # self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(self.optimizer,
-        #                                                       factor=0.1,
-        #                                                       patience=5,
-        #                                                       verbose=True)
     ##################################
 
     def save(self, filepath):
@@ -115,6 +111,12 @@ class MLPPolicyPG(MLPPolicy):
         )
         self.baseline_loss = nn.MSELoss()
 
+        self.optimizer = optim.Adam(
+            itertools.chain([self.logstd], self.mean_net.parameters()),
+            lr=self.learning_rate
+        )
+
+
     def update(self, observations, actions, advantages, q_values=None):
         observations = ptu.from_numpy(observations)
         actions = ptu.from_numpy(actions)
@@ -145,7 +147,7 @@ class MLPPolicyPG(MLPPolicy):
         # apply baseline to reduce variance
         # TODO: normalize the q_values to have a mean of zero and a standard deviation of one
         targets = utils.normalize(q_values, np.mean(q_values), np.std(q_values))
-        targets = ptu.from_numpy(targets)
+        targets = torch.squeeze(ptu.from_numpy(targets))
 
         # TODO: use the `forward` method of `self.baseline` to get baseline predictions
         # avoid any subtle broadcasting bugs that can arise when dealing with arrays of shape
