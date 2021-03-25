@@ -159,8 +159,8 @@ if __name__ == '__main__':
     print("##### PARAM ########")
     # params["expert_policy"] = os.path.join(path, "tmp/demo_agent", params["expert_policy"])
     params["expert_policy"] = os.path.join(path, "ppo_nav_env")
-    params['n_iter'] = 50
-    # Number of expert rollouts to add to replay buffer
+    params['n_iter'] = 10
+    # Number of expert rollouts to add to demo replay buffer
     params['demo_size'] = 100
     params['discount'] = 0.99
     params["learning_rate"] = 5e-3
@@ -173,11 +173,11 @@ if __name__ == '__main__':
     # Number of policy rollouts to sample from replay buffer per reward update
     # Number of transition steps to sample from replay buffer per policy update PG
 
-    params["batch_size"] = 15
+    params["batch_size"] = 20
     params["num_reward_train_steps_per_iter"] = 10  # K_r
-    params["num_policy_train_steps_per_iter"] = 10  # K_p
-    params["train_demo_batch_size"] = 100
-    params["train_sample_batch_size"] = 100
+    params["num_policy_train_steps_per_iter"] = 50  # K_p
+    params["train_demo_batch_size"] = 10
+    params["train_sample_batch_size"] = 10
     params["train_batch_size"] = 1000
 
 
