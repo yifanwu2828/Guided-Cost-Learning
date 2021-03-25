@@ -145,3 +145,9 @@ def from_numpy(*args, **kwargs):
 
 def to_numpy(tensor):
     return tensor.to('cpu').detach().numpy()
+
+
+def exp_normalize(x):
+    b = x.max()
+    y = torch.exp(x - b)
+    return y / y.sum()
