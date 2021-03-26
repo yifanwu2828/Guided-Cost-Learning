@@ -104,7 +104,7 @@ class ReplayBuffer(object):
             return observations, actions, unconcatenated_rews, next_observations, terminals
 
     def flush(self):
-        """ Clear Replay Buffer """
+        """ Reset Replay Buffer """
         self.paths = []
         self.obs = None
         self.acs = None
@@ -113,3 +113,4 @@ class ReplayBuffer(object):
         self.unconcatenated_rews = None
         self.next_obs = None
         self.terminals = None
+        self.num_paths = len(self.paths)
