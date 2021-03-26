@@ -45,7 +45,7 @@ def evaluate_model(eval_env_id, model, num_episodes=1000, render=False):
     :return: (float) Mean reward for the last num_episodes
     """
     # This function will only work for a single Environment
-    eval_env=gym.make(eval_env_id)
+    eval_env = gym.make(eval_env_id)
     all_episode_rewards = []
     for _ in range(num_episodes):
         episode_rewards = []
@@ -86,6 +86,7 @@ def sample_trajectory(env,
     :param render_mode: 'human' or 'rgb_array'
     :param expert: sample from expert policy if True
     """
+    assert isinstance(max_path_length, int)
     assert max_path_length >= 0
     # initialize env for the beginning of a new rollout
     ob = env.reset()
@@ -154,7 +155,7 @@ def sample_trajectory(env,
 
         if rollout_done:
             break
-
+    # In GCL rewards will not be used
     return Path(obs, image_obs, acs, log_probs, rewards, next_obs, terminals)
 
 
@@ -168,9 +169,10 @@ def sample_trajectories(env, policy, agent,
     """
     Sample rollouts until we have collected batch_size trajectories
     """
+    assert isinstance(min_timesteps_per_batch, int) and isinstance(max_path_length, int)
     assert min_timesteps_per_batch > 0 and max_path_length > 0
 
-    timesteps_this_batch = 0
+    timesteps_this_batch: int = 0
     paths: List[PathDict] = []
     while timesteps_this_batch < min_timesteps_per_batch:
         path: PathDict = sample_trajectory(
@@ -199,12 +201,13 @@ def sample_n_trajectories(env, policy, agent,
         use sample_trajectory to get each path (i.e. rollout) that goes into paths
         collect n trajectories for video recording
     """
+    assert isinstance(ntrajs, int) and isinstance(max_path_length, int)
     assert ntrajs > 0 and max_path_length > 0
-    ntraj_paths = [sample_trajectory(env, policy, agent,
-                                     max_path_length,
-                                     render=render, render_mode=render_mode,
-                                     expert=expert) for _ in range(ntrajs)
-                   ]
+    ntraj_paths: List[PathDict] = [sample_trajectory(env, policy, agent,
+                                                     max_path_length,
+                                                     render=render, render_mode=render_mode,
+                                                     expert=expert) for _ in range(ntrajs)
+                                   ]
     return ntraj_paths
 
 
@@ -267,4 +270,4 @@ def unnormalize(data, mean, std):
 
 
 def mean_squared_error(a, b):
-    return np.mean((a-b)**2)
+    return np.mean((a - b) ** 2)
