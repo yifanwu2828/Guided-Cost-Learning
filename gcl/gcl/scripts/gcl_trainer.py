@@ -1,16 +1,18 @@
 import pickle
 import time
 from collections import OrderedDict
+from typing import List, Optional, Tuple, Any
 
 import gym
 import gym_nav
 import numpy as np
 import torch
-from stable_baselines3 import PPO
+from stable_baselines3 import PPO, A2C
 from tqdm import tqdm
 
 import pytorch_util as ptu
 import utils
+from utils import PathDict
 from logger import Logger
 
 # set overflow warning to error instead
@@ -22,7 +24,7 @@ MAX_NVIDEO = 2
 MAX_VIDEO_LEN = 40  # we overwrite this in the code below
 
 
-class GCL_Trainer():
+class GCL_Trainer(object):
     """ GCL_Trainer """
 
     def __init__(self, params):
@@ -86,31 +88,38 @@ class GCL_Trainer():
 
         agent_class = self.params['agent_class']
         self.agent = agent_class(self.env, self.params['agent_params'])
-        print(len(self.agent.demo_buffer), self.agent.demo_buffer.num_paths)
-        print(len(self.agent.sample_buffer), self.agent.sample_buffer.num_paths)
-        print(len(self.agent.background_buffer), self.agent.background_buffer.num_paths)
 
     ############################################################################################
-    def run_training_loop(self, n_iter, collect_policy, eval_policy,
-                          expert_data=None, expert_policy=None):
+    def run_training_loop(self, n_iter: int,
+                          collect_policy, eval_policy,
+                          expert_data=None, expert_policy=None) -> Tuple[Any, Any]:
         """
         :param n_iter: number of iterations
         :param collect_policy: q_k
+        :param eval_policy: q_k at t
         :param expert_data: D_demo
-        :param expert_policy:
+        :param expert_policy: pi*
         """
         # init vars at beginning of training
         self.total_envsteps = 0
         self.start_time = time.time()
 
-        # add demonstrations to replay buffer
-        # demo_paths = self.collect_demo_trajectories(expert_data, expert_policy, render=True)
-        demo_paths = self.collect_demo_trajectories(expert_data, expert_policy, render=False)
+        train_log_lst, policy_log_lst = [], []
+        demo_paths: List[PathDict]
+        samp_paths: List[PathDict]
+
+        #####################################################################
+        # 1. add demonstrations to replay buffer
+        demo_paths, _, _ = self.collect_demo_trajectories(expert_data, expert_policy,
+                                                          ntrajs=self.params['demo_size'],
+                                                          demo_batch_size=self.params['demo_batch_size'],
+                                                          render=False, verbose=True)
         self.agent.add_to_buffer(demo_paths, demo=True)
+        print(f'\nNum of Demo rollouts collected:{self.agent.demo_buffer.num_paths}')
+        print(f'Num of Demo transition steps collected:{self.agent.demo_buffer.num_data}')
         utils.toc(self.start_time, "Finish Loading Expert Demonstrations")
 
-        train_log_lst, policy_log_lst = [], []
-
+        #####################################################################
         # 2.
         n_iter_loop = tqdm(range(n_iter), desc="Guided cost learning", leave=False)
         for itr in n_iter_loop:
@@ -137,14 +146,19 @@ class GCL_Trainer():
             # collect trajectories, to be used for training
             # On-policy PG need to collect new trajectories at *every* iteration
             with torch.no_grad():
-                paths, envsteps_this_batch, train_video_paths = self.collect_training_trajectories(
+                samp_paths, envsteps_this_batch, _ = self.collect_training_trajectories(
                     collect_policy, self.params['batch_size']
                 )
             self.total_envsteps += envsteps_this_batch
 
             # 4. Append samples D_traj to D_samp
-            self.agent.add_to_buffer(paths)
-            print(len(self.agent.sample_buffer), self.agent.sample_buffer.num_paths)
+            self.agent.add_to_buffer(samp_paths)
+
+            print(f"Demo_buffer_size: {len(self.agent.demo_buffer)}, {self.agent.demo_buffer.num_data}")
+            print(f"Sample_buffer_size: {len(self.agent.sample_buffer)}, {self.agent.sample_buffer.num_data}")
+            print(f"Back_buffer_size: {len(self.agent.background_buffer)}, {self.agent.background_buffer.num_data}")
+            print("##########################################################################")
+
             # 5. Use D_{samp} to update cost c_{\theta}
             reward_logs = self.train_reward()  # Algorithm 2
 
@@ -160,60 +174,78 @@ class GCL_Trainer():
                 if self.params['save_params']:
                     self.agent.save('{}/agent_itr_{}.pt'.format(self.params['logdir'], itr))
 
-            for i, j in zip(reward_logs, policy_logs):
-                reward_loss = float(i['Training reward loss'])
+            for r, p in zip(reward_logs, policy_logs):
+                reward_loss = float(r['Training reward loss'])
                 train_log_lst.append(reward_loss)
-                policy_loss = float(j['Training Loss'])
+                policy_loss = float(p['Training Loss'])
                 policy_log_lst.append(policy_loss)
 
             # update progress bar
-            n_iter_loop.set_postfix(envsteps=envsteps_this_batch, )
+            n_iter_loop.set_postfix()
         return train_log_lst, policy_log_lst
 
     ############################################################################################
-    def collect_demo_trajectories(self, expert_data, expert_policy, render=False):
+    def collect_demo_trajectories(self, expert_data, expert_policy,
+                                  ntrajs: int = 100, demo_batch_size: int = 1000,
+                                  render=False, verbose=False
+                                  ) -> Tuple[List[PathDict], int, Any]:
         """
-        :param expert_data:  relative path to saved 
-        :param expert_policy:  relative path to saved expert policy
-        :param render: show video of demo trajs
+        :param: expert_data:  relative path to saved
+        :param: expert_policy:  relative path to saved expert policy
+        :param: render: show video of demo trajs
+        :param: verbose: evaluate expert policy and print metrics
         :return:
             paths: a list of trajectories with len = self.params['demo_size']
                     each trajectory is a dict {obs, image_obs, acs, log_probs, rewards, next_obs, terminals}
         """
         render_mode = 'human' if render else 'rgb_array'
+        train_video_paths = None
+        demo_paths: List[PathDict]
 
         # Load expert policy or expert demonstrations D_demo
         if expert_data:
-            # if expert_data != ''
             print('\nLoading saved demonstrations...')
-
             with open(expert_data, 'rb') as f:
                 # TODO: load data may not through pickle
                 demo_paths = pickle.load(f)
             # TODO: sample self.params['demo_size'] from demo_paths -- implemented
-            return demo_paths[: self.params['demo_size']]
+            return demo_paths[: ntrajs], 0, None
 
         elif expert_policy:
             # TODO: make this to accept other expert policies
-            print('\n', expert_policy, "$$$$$$$$$$$$$$$$")
             expert_policy = PPO.load(expert_policy)
             print('\nRunning expert policy to collect demonstrations...')
-            demo_paths, _ = utils.sample_trajectories(
+
+            # demo_paths = utils.sample_n_trajectories(
+            #     self.env,
+            #     policy=expert_policy,
+            #     agent=self.agent,
+            #     ntrajs=self.params['demo_size'],
+            #     max_path_length=self.params['ep_len'],
+            #     render=render,
+            #     render_mode=render_mode,
+            #     expert=True
+            # )
+
+            demo_paths, envsteps_this_batch = utils.sample_trajectories(
                 self.env,
                 policy=expert_policy,
                 agent=self.agent,
-                min_timesteps_per_batch=self.params['demo_size'],
+                min_timesteps_per_batch=demo_batch_size,
                 max_path_length=self.params['ep_len'],
                 render=render,
                 render_mode=render_mode,
                 expert=True
             )
+            if verbose:
+                utils.evaluate_model(self.params['env_name'], expert_policy, num_episodes=100)
         else:
             raise ValueError('Please provide either expert demonstrations or expert policy')
-        return demo_paths
+        return demo_paths, envsteps_this_batch, train_video_paths
 
-    ############################################################################################
-    def collect_training_trajectories(self, collect_policy, batch_size):
+        ############################################################################################
+
+    def collect_training_trajectories(self, collect_policy, batch_size: int):
         """
         :param collect_policy:  the current policy which we use to collect data
         :param batch_size:  the number of trajectories to collect
@@ -223,6 +255,7 @@ class GCL_Trainer():
             train_video_paths: paths which also contain videos for visualization purposes
         """
         print("\nCollecting sample trajectories to be used for training...")
+
         paths, envsteps_this_batch = utils.sample_trajectories(
             self.env,
             policy=collect_policy,
@@ -253,14 +286,19 @@ class GCL_Trainer():
         """
         print("\nUpdating reward parameters...")
         reward_logs = []
-        K_train_reward_loop = tqdm(range(self.params['num_reward_train_steps_per_iter']),
-                                   desc="reward_update",
-                                   leave=False)
+        # K_train_reward_loop = tqdm(range(self.params['num_reward_train_steps_per_iter']),
+        #                            desc="reward_update",
+        #                            leave=False)
+        K_train_reward_loop = range(self.params['num_reward_train_steps_per_iter'])
         for k_rew in K_train_reward_loop:
             # Sample demonstration batch D^_{demo} \subset D_{demo}
             demo_batch = self.agent.sample_rollouts(self.params['train_demo_batch_size'], demo=True)
             # Sample background batch D^_{samp} \subset D_{sample}
             sample_batch = self.agent.sample_rollouts(self.params['train_sample_batch_size'])
+
+            print(f"Add {len(demo_batch)} demo rollouts to background batch")
+            print(f"Add {len(sample_batch)} sample rollouts to background batch")
+            print("##########################################################################")
 
             # reshape rollouts' elements to match the dimension in Replay buffer
             for num_rollout, _ in enumerate(demo_batch):
@@ -276,11 +314,21 @@ class GCL_Trainer():
             background_batch = self.agent.sample_background_rollouts(background_batch_size,
                                                                      recent=False,
                                                                      all_rollouts=True)
+            print(f"Demo_buffer_size: {len(self.agent.demo_buffer)}, {self.agent.demo_buffer.num_data}")
+            print(f"Sample_buffer_size: {len(self.agent.sample_buffer)}, {self.agent.sample_buffer.num_data}")
+            print(
+                f"background_buffer_size: {len(self.agent.background_buffer)}, {self.agent.background_buffer.num_data}")
+            print("##########################################################################")
+
+            for demo, sample in zip(demo_batch, sample_batch):
+                print(demo['observation'].shape)
+                print(sample['observation'].shape)
+
 
             reward_log = self.agent.train_reward(demo_batch, background_batch)
             reward_logs.append(reward_log)
 
-            # self.agent.background_buffer.flush()
+            self.agent.background_buffer.flush()
 
             # K_train_reward_loop.set_postfix(K_rew=k_rew,
             #                                 reward_loss=reward_log["Training reward loss"],
@@ -294,10 +342,10 @@ class GCL_Trainer():
         """
         print('\nTraining agent using sampled data from replay buffer...')
         train_policy_logs = []
-        K_train_policy_loop = tqdm(range(self.params['num_policy_train_steps_per_iter']),
-                                   desc="policy_update",
-                                   leave=False)
-
+        # K_train_policy_loop = tqdm(range(self.params['num_policy_train_steps_per_iter']),
+        #                            desc="policy_update",
+        #                            leave=False)
+        K_train_policy_loop = range(self.params['num_policy_train_steps_per_iter'])
         for k in K_train_policy_loop:
             ob_batch, ac_batch, re_batch, next_ob_batch, terminal_batch = self.agent.sample(
                 self.params['train_batch_size'],
