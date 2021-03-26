@@ -75,12 +75,12 @@ if __name__ == '__main__':
     torch.autograd.set_detect_anomaly(True)
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--env_name', type=str, default='NavEnv-v0')
-    parser.add_argument('--exp_name', type=str, default='nav_env_irl')
+    parser.add_argument('--env_name', '-env', type=str, default='NavEnv-v0')
+    parser.add_argument('--exp_name', '-exp', type=str, default='nav_env_irl')
 
     # relative to where you're running this script from
-    parser.add_argument('--expert_policy', type=str, default='ppo_nav_env')
-    parser.add_argument('--expert_data', type=str, default='')
+    parser.add_argument('--expert_policy', '-epf', type=str, default='ppo_nav_env')
+    parser.add_argument('--expert_data', '-ed', type=str, default='')
 
     parser.add_argument(
         '--n_iter', '-n', type=int, default=10,
@@ -178,8 +178,8 @@ if __name__ == '__main__':
     params["num_policy_train_steps_per_iter"] = 1000  # K_p
     params["train_demo_batch_size"] = 100
     params["train_sample_batch_size"] = 100
-    params["batch_size"] = 1000
-    params["train_batch_size"] = params["batch_size"]
+    params["batch_size"] = 100
+    params["train_batch_size"] = 100
 
 
 
