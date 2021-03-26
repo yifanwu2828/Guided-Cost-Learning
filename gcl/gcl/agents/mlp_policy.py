@@ -1,6 +1,6 @@
 import abc
 import itertools
-from typing import Tuple
+from typing import Tuple, Optional, Dict
 from torch import nn
 from torch.nn import functional as F
 from torch import optim
@@ -52,6 +52,7 @@ class MLPPolicy(BasePolicy, nn.Module, metaclass=abc.ABCMeta):
             lr=self.learning_rate
 
         )
+
     ##################################
 
     def save(self, filepath):
@@ -75,7 +76,7 @@ class MLPPolicy(BasePolicy, nn.Module, metaclass=abc.ABCMeta):
         return ptu.to_numpy(action), ptu.to_numpy(log_prob)
 
     # update/train this policy
-    def update(self, observations, actions, **kwargs):
+    def update(self, observations, actions, **kwargs) -> dict:
         raise NotImplementedError
 
     # This function defines the forward pass of the network.
@@ -121,8 +122,8 @@ class MLPPolicyPG(MLPPolicy):
             lr=self.learning_rate
         )
 
-
-    def update(self, observations, actions, advantages, q_values=None):
+    def update(self, observations: np.ndarray, actions: np.ndarray,
+               advantages: np.ndarray, q_values: Optional[np.ndarray] = None)-> Dict[str, np.ndarray]:
         observations = ptu.from_numpy(observations)
         actions = ptu.from_numpy(actions)
         advantages = ptu.from_numpy(advantages)
@@ -146,7 +147,6 @@ class MLPPolicyPG(MLPPolicy):
         loss.backward()
         self.optimizer.step()
 
-
         # apply baseline to reduce variance
         # TODO: normalize the q_values to have a mean of zero and a standard deviation of one
         targets = utils.normalize(q_values, np.mean(q_values), np.std(q_values))
@@ -168,7 +168,7 @@ class MLPPolicyPG(MLPPolicy):
         train_log = {'Training Loss': ptu.to_numpy(loss)}
         return train_log
 
-    def run_baseline_prediction(self, obs):
+    def run_baseline_prediction(self, obs: np.ndarray) -> np.ndarray:
         """
             Helper function that converts `obs` to a tensor,
             calls the forward method of the baseline MLP,
@@ -181,7 +181,6 @@ class MLPPolicyPG(MLPPolicy):
         obs = ptu.from_numpy(obs)
         predictions = self.baseline(obs)
         return ptu.to_numpy(predictions)[:, 0]
-
 
 # TODO implement MLPPolicyGPS()
 # class MLPPolicyGPS(MLPPolicy):
