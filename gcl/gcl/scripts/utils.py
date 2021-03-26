@@ -3,8 +3,10 @@ import time
 import torch
 
 
-########################################################################################
+############################################
+############################################
 def tic(message=None):
+    """ Timing Function """
     if message:
         print(message)
     else:
@@ -12,13 +14,26 @@ def tic(message=None):
     return time.time()
 
 
+############################################
+############################################
 def toc(t_start, name="Operation"):
+    """ Timing Function """
     print(f'\n############ {name} took: {(time.time() - t_start):.4f} sec. ############\n')
 
 
 ########################################################################################
 
-def sample_trajectory(env, policy, agent, render=False, render_mode=('rgb_array'), expert=False):
+def sample_trajectory(env, policy, agent, max_path_length, render=False, render_mode=('rgb_array'), expert=False):
+    """
+    Sample one trajectory
+    :param env: simulation environment
+    :param policy: current policy or expert policy
+    :param agent:
+    :param max_path_length: max_path_length should equal to env.max_steps
+    :param render: visualize trajectory if render is True
+    :param render_mode: 'human' or 'rgb_array'
+    :param expert: sample from expert policy if True
+    """
     # initialize env for the beginning of a new rollout
     ob = env.reset()
 
@@ -36,15 +51,21 @@ def sample_trajectory(env, policy, agent, render=False, render_mode=('rgb_array'
                     image_obs.append(env.render(mode=render_mode))
             if 'human' in render_mode:
                 env.render(mode=render_mode)
-                time.sleep(env.model.opt.timestep)
+                # TODO: implement this in NAV_ENV
+                # time.sleep(env.model.opt.timestep)
+                # time.sleep(0.1)
 
         # use the most recent ob to decide what to do
         obs.append(ob)
         if expert:
-            ac, _ = policy.predict(obs)
-            log_prob = None
+            # stable_baselines3 implementation may need to change this
+            ac, _ = policy.predict(obs, deterministic=True)
+            # expert demonstrations assume log_prob = 0
+            log_prob = 0
         else:
+            # query the policy's get_action function
             ac, log_prob = policy.get_action(ob)
+        # unpack ac to remove unwanted type and dim
         ac = ac[0]
         acs.append(ac)
         log_probs.append(log_prob)
@@ -56,17 +77,16 @@ def sample_trajectory(env, policy, agent, render=False, render_mode=('rgb_array'
         steps += 1
         next_obs.append(ob)
 
-        if expert:          # should expert using true reward?
+        if expert:  # should expert using true reward?
             rewards.append(rew)
         else:
             # not running on gpu which is slow
             rewards.append(agent.reward.forward(torch.from_numpy(ob).float(),
                                                 torch.from_numpy(ac).float()).detach().numpy())
 
-
         # end the rollout if (rollout can end due to done, or due to max_path_length)
         rollout_done = 0
-        if done or steps >= env.max_steps:
+        if done or steps >= max_path_length:  # max_path_length == env.max_steps
             rollout_done = 1  # HINT: this is either 0 or 1
         terminals.append(rollout_done)
 
@@ -76,33 +96,48 @@ def sample_trajectory(env, policy, agent, render=False, render_mode=('rgb_array'
     return Path(obs, image_obs, acs, log_probs, rewards, next_obs, terminals)
 
 
-def sample_trajectories(env, policy, batch_size, agent, render=False, render_mode='rgb_array', expert=False):
+########################################################################################
+
+def sample_trajectories(env, policy, agent,
+                        min_timesteps_per_batch, max_path_length,
+                        render=False, render_mode=('rgb_array'),
+                        expert=False):
     """
     Sample rollouts until we have collected batch_size trajectories
     """
-    paths = []
     timesteps_this_batch = 0
-    for _ in range(batch_size):
+    paths = []
+    while timesteps_this_batch < min_timesteps_per_batch:
         path = sample_trajectory(
-            env, policy, agent, render=render,
-            render_mode=render_mode, expert=expert
+            env,
+            policy,
+            agent,
+            max_path_length,
+            render=render,
+            render_mode=render_mode,
+            expert=expert
         )
         paths.append(path)
-        # get_pathlength() to count the timesteps collected in each path
         timesteps_this_batch += get_pathlength(path)
     return paths, timesteps_this_batch
 
 
-def sample_n_trajectories(env, policy, ntraj, max_path_length, render=False, render_mode='rgb_array'):
-    """
-        Collect ntraj rollouts.
-        Hint1: use sample_trajectory to get each path (i.e. rollout) that goes into paths
-    """
-    paths = []
-    for n in range(ntraj):
-        paths.append(sample_trajectory(env, policy, max_path_length, render, render_mode))
+########################################################################################
 
-    return paths
+def sample_n_trajectories(env, policy, agent, ntraj, max_path_length,
+                          render=False, render_mode=('rgb_array'),
+                          expert=False):
+    """
+    Collect ntraj rollouts.
+        use sample_trajectory to get each path (i.e. rollout) that goes into paths
+        collect n trajectories for video recording
+    """
+    ntraj_paths = [sample_trajectory(env, policy, agent,
+                                     max_path_length,
+                                     render=render, render_mode=render_mode,
+                                     expert=expert) for _ in range(ntraj)
+                   ]
+    return ntraj_paths
 
 
 ############################################
@@ -121,7 +156,8 @@ def Path(obs, image_obs, acs, log_probs, rewards, next_obs, terminals):
             "action": np.array(acs, dtype=np.float32),
             "log_prob": np.array(log_probs, dtype=np.float32),
             "next_observation": np.array(next_obs, dtype=np.float32),
-            "terminal": np.array(terminals, dtype=np.float32)}
+            "terminal": np.array(terminals, dtype=np.float32)
+            }
 
 
 ############################################
