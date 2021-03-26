@@ -5,6 +5,9 @@ from torch import optim
 import torch.nn.functional as F
 from gcl.scripts import pytorch_util as ptu
 
+# set overflow warning to error instead
+torch.autograd.set_detect_anomaly(True)
+
 
 class MLPReward(nn.Module):
     """
@@ -26,6 +29,8 @@ class MLPReward(nn.Module):
             output_size=self.output_size,
             n_layers=self.n_layers,
             size=self.size,
+            # n_layers=5,
+            # size=40,
             activation='identity',
             output_activation='relu'
         )
@@ -62,9 +67,13 @@ class MLPReward(nn.Module):
         """
         y = self.mlp(observation)
         z = torch.matmul(y, self.A) + self.b
-        r = -(z * z).sum(-1) - self.w * (action * action).sum(-1)
-        # print(r)
-        return r
+        cost = (z * z).sum(-1) + self.w * (action * action).sum(-1)
+        assert self.w.item()>=0
+        # print(cost)
+        # reward = - torch.sigmoid(cost)
+        reward = - cost
+        # print(reward)
+        return reward
 
     def update(self, demo_obs, demo_acs, sample_obs, sample_acs, log_probs):
         """
@@ -80,9 +89,16 @@ class MLPReward(nn.Module):
         """
         demo_obs = ptu.from_numpy(demo_obs)
         demo_acs = ptu.from_numpy(demo_acs)
-        sample_obs = ptu.from_numpy(sample_obs)
-        sample_acs = ptu.from_numpy(sample_acs)
-        log_probs = torch.squeeze(ptu.from_numpy(log_probs), dim=-1)
+        try:
+            sample_obs = ptu.from_numpy(sample_obs)
+            sample_acs = ptu.from_numpy(sample_acs)
+            log_probs = torch.squeeze(ptu.from_numpy(log_probs), dim=-1)
+
+        except:
+            import ipdb; ipdb.set_trace
+            print(f"sample_obs: {sample_obs}")
+            print(f"sample_acs: {sample_acs}")
+            print(f"log_probs: {log_probs}")
 
         sum_log_probs = log_probs.sum(-1)
         
@@ -96,7 +112,8 @@ class MLPReward(nn.Module):
         importance weights = wj/sum(wj)
         '''
         x = sample_return - sum_log_probs
-        weights = torch.exp(x-torch.logsumexp(x, -1))
+        weights = torch.exp(x - torch.logsumexp(x, -1))
+        assert abs(weights.sum(-1).item() - 1) <= 1e-2
 
         demo_loss = torch.mean(demo_return)
         sample_loss = torch.sum(weights * sample_return)
