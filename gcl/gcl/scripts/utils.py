@@ -1,8 +1,20 @@
-import numpy as np
+from typing_extensions import TypedDict
+from typing import Tuple, List, Dict
 import time
+import numpy as np
 import torch
 import gym
 import gym_nav
+
+
+class PathDict(TypedDict):
+    observation: np.ndarray
+    image_obs: np.ndarray
+    reward: np.ndarray
+    action: np.ndarray
+    next_observation: np.ndarray
+    terminal: np.ndarray
+
 
 ############################################
 ############################################
@@ -23,8 +35,47 @@ def toc(t_start, name="Operation"):
 
 
 ########################################################################################
+def evaluate_model(eval_env_id, model, num_episodes=1000, render=False):
+    """
+    Evaluate a RL agent in the given ENV
+    :param: name of eval_env
+    :param: model: (BaseRLModel object) the RL Agent
+    :param: num_episodes: (int) number of episodes to evaluate it
+    :param: render
+    :return: (float) Mean reward for the last num_episodes
+    """
+    # This function will only work for a single Environment
+    eval_env=gym.make(eval_env_id)
+    all_episode_rewards = []
+    for _ in range(num_episodes):
+        episode_rewards = []
+        done = False
+        obs = eval_env.reset()
+        while not done:
+            action, _states = model.predict(obs, deterministic=True)
+            # here, action, rewards and dones are arrays
+            obs, reward, done, info = eval_env.step(action)
+            episode_rewards.append(reward)
+            if render:
+                eval_env.render()
+        all_episode_rewards.append(sum(episode_rewards))
+    eval_env.close()
+    mean_episode_reward = np.mean(all_episode_rewards)
+    max_episode_reward = np.max(all_episode_rewards)
+    std_episode_reward = np.std(all_episode_rewards)
+    print(f"Mean_reward:{mean_episode_reward:.3f} +/- {std_episode_reward:.3f} in {num_episodes} episodes")
+    print(f"Max_reward:{max_episode_reward:.3f} in {num_episodes} episodes")
+    return mean_episode_reward, std_episode_reward
 
-def sample_trajectory(env, policy, agent, max_path_length, render=False, render_mode=('rgb_array'), expert=False):
+
+########################################################################################
+def sample_trajectory(env,
+                      policy,
+                      agent,
+                      max_path_length: int,
+                      render=False, render_mode: str = 'rgb_array',
+                      expert=False
+                      ) -> PathDict:
     """
     Sample one trajectory
     :param env: simulation environment
@@ -35,11 +86,20 @@ def sample_trajectory(env, policy, agent, max_path_length, render=False, render_
     :param render_mode: 'human' or 'rgb_array'
     :param expert: sample from expert policy if True
     """
+    assert max_path_length >= 0
     # initialize env for the beginning of a new rollout
     ob = env.reset()
 
     # init vars
-    obs, acs, log_probs, rewards, next_obs, terminals, image_obs = [], [], [], [], [], [], []
+    # obs, acs, log_probs, rewards, next_obs, terminals, image_obs = [], [], [], [], [], [], []
+    obs: List[np.ndarray] = []
+    acs: List[np.ndarray] = []
+    log_probs: List[np.ndarray] = []
+    rewards: List[np.ndarray] = []
+    next_obs: List[np.ndarray] = []
+    terminals: List[int] = []
+    image_obs: List[np.ndarray] = []
+
     steps = 0
     while True:
 
@@ -90,9 +150,6 @@ def sample_trajectory(env, policy, agent, max_path_length, render=False, render_
         rollout_done = 0
         if done or steps >= max_path_length:  # max_path_length == env.max_steps
             rollout_done = 1  # HINT: this is either 0 or 1
-            if render:
-                print(steps)
-                print(env.pos)
         terminals.append(rollout_done)
 
         if rollout_done:
@@ -104,20 +161,23 @@ def sample_trajectory(env, policy, agent, max_path_length, render=False, render_
 ########################################################################################
 
 def sample_trajectories(env, policy, agent,
-                        min_timesteps_per_batch, max_path_length,
-                        render=False, render_mode=('rgb_array'),
-                        expert=False):
+                        min_timesteps_per_batch: int, max_path_length: int,
+                        render=False, render_mode: str = 'rgb_array',
+                        expert=False
+                        ) -> Tuple[List[PathDict], int]:
     """
     Sample rollouts until we have collected batch_size trajectories
     """
+    assert min_timesteps_per_batch > 0 and max_path_length > 0
+
     timesteps_this_batch = 0
-    paths = []
+    paths: List[PathDict] = []
     while timesteps_this_batch < min_timesteps_per_batch:
-        path = sample_trajectory(
+        path: PathDict = sample_trajectory(
             env,
             policy,
             agent,
-            max_path_length,
+            max_path_length=max_path_length,
             render=render,
             render_mode=render_mode,
             expert=expert
@@ -129,14 +189,17 @@ def sample_trajectories(env, policy, agent,
 
 ########################################################################################
 
-def sample_n_trajectories(env, policy, agent, ntrajs, max_path_length,
-                          render=False, render_mode=('rgb_array'),
-                          expert=False):
+def sample_n_trajectories(env, policy, agent,
+                          ntrajs: int, max_path_length: int,
+                          render=False, render_mode: str = 'rgb_array',
+                          expert=False
+                          ) -> List[PathDict]:
     """
     Collect ntraj rollouts.
         use sample_trajectory to get each path (i.e. rollout) that goes into paths
         collect n trajectories for video recording
     """
+    assert ntrajs > 0 and max_path_length > 0
     ntraj_paths = [sample_trajectory(env, policy, agent,
                                      max_path_length,
                                      render=render, render_mode=render_mode,
@@ -148,7 +211,11 @@ def sample_n_trajectories(env, policy, agent, ntrajs, max_path_length,
 ############################################
 ############################################
 
-def Path(obs, image_obs, acs, log_probs, rewards, next_obs, terminals):
+def Path(obs: List[np.ndarray], image_obs: List[np.ndarray],
+         acs: List[np.ndarray], log_probs: List[np.ndarray],
+         rewards: List[np.ndarray], next_obs: List[np.ndarray],
+         terminals: List[int]
+         ) -> Dict[str, np.ndarray]:
     """
         Take info (separate arrays) from a single rollout
         and return it in a single dictionary
@@ -187,7 +254,7 @@ def convert_listofrollouts(paths):
 ############################################
 ############################################
 
-def get_pathlength(path):
+def get_pathlength(path: PathDict) -> int:
     return len(path["reward"])
 
 
@@ -197,3 +264,7 @@ def normalize(data, mean, std, eps=1e-8):
 
 def unnormalize(data, mean, std):
     return data * std + mean
+
+
+def mean_squared_error(a, b):
+    return np.mean((a-b)**2)
