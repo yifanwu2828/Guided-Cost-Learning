@@ -6,6 +6,7 @@ from gcl.agents.base_agent import BaseAgent
 from gcl.agents.mlp_reward import MLPReward
 from gcl.scripts.replay_buffer import ReplayBuffer
 import gcl.scripts.utils as utils
+
 # set overflow warning to error instead
 np.seterr(all='raise')
 torch.autograd.set_detect_anomaly(True)
@@ -41,7 +42,7 @@ class GCL_Agent(BaseAgent):
         )
 
         # Replay buffers: demo holds expert demonstrations and sample holds policy samples
-        self.demo_buffer = ReplayBuffer(1000)
+        self.demo_buffer = ReplayBuffer(1000000)
         self.sample_buffer = ReplayBuffer(1000000)
         self.background_buffer = ReplayBuffer(1000000)
 
@@ -144,7 +145,7 @@ class GCL_Agent(BaseAgent):
         else:
             return self.sample_buffer.sample_recent_data(batch_size, concat_rew=False)
 
-    def sample_background_rollouts(self, batch_size, recent=False, all_rollouts=False):
+    def sample_background_rollouts(self, batch_size=None, recent=False, all_rollouts=False):
 
         if all_rollouts:
             return self.background_buffer.sample_all_rollouts()
