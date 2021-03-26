@@ -127,8 +127,8 @@ if __name__ == '__main__':
             reward_log_dict2["act"].append(action)
             reward_log_dict2["obs"].append(obs)
             reward_log_dict2["mlp_reward"].append(float(reward_model(torch.from_numpy(obs).float(),
-                                                                    torch.from_numpy(action).float())
-                                                       .detach().numpy()))
+                                                                     torch.from_numpy(action).float())
+                                                        .detach().numpy()))
             reward_log_dict2["true_reward"].append(reward)
             # env.render()
             if done:
@@ -194,7 +194,7 @@ if __name__ == '__main__':
 
         scaler = preprocessing.MinMaxScaler(feature_range=(-1, 0))
         scaler.fit(Z)
-        Z = (scaler.transform(Z)*255).astype(np.uint8)
+        Z = (scaler.transform(Z) * 255).astype(np.uint8)
 
         # reward_min, reward_max = np.min(Z), np.max(Z)
         # print(reward_min, reward_max)
@@ -211,15 +211,15 @@ if __name__ == '__main__':
     #######################################################################################
     #######################################################################################
     policy_log_dict = {"act": [], "obs": [], "agent_reward": [], "expert_reward": [], "ep_len": []}
-    policy_expert_dict= {"act": [], "obs": [], "expert_reward": [], "done": [], "info": []}
+    policy_expert_dict = {"act": [], "obs": [], "expert_reward": [], "done": [], "info": []}
     #######################################################################################
     ''' TEST Policy'''
     env_agent = gym.make('NavEnv-v0')
     env_agent.seed(0)
     collect = False
     if POLICY:
-        t=0
-        obs = env_agent.reset()# set inital position
+        t = 0
+        obs = env_agent.reset()  # set inital position
         policy_expert_dict["obs"].append(obs)
         n_step = range(1000)
         for i in tqdm(n_step, leave=False):
@@ -232,7 +232,10 @@ if __name__ == '__main__':
                 policy_expert_dict["done"].append(done)
 
             action, _ = policy_model.get_action(obs)
-            action=action.reshape(-1)
+            print(action)
+            print(action.shape)
+            action = action.reshape(-1)
+            print(action.shape)
             obs, reward, done, _ = env.step(action)
             policy_log_dict["act"].append(action)
             policy_log_dict["obs"].append(obs)
@@ -250,7 +253,3 @@ if __name__ == '__main__':
 
                 t = i
         env.close()
-
-
-
-
