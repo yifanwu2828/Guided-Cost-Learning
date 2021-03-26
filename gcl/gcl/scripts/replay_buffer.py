@@ -4,8 +4,8 @@ import numpy as np
 
 class ReplayBuffer(object):
 
-    def __init__(self, max_size=1000000):
-        default_size = 1000000
+    def __init__(self, max_size=100000):
+        default_size = 100000
         if max_size> default_size:
             print(f"Exceed default_size: {default_size}")
         self.max_size = max_size
@@ -20,8 +20,10 @@ class ReplayBuffer(object):
         self.next_obs = None
         self.terminals = None
 
+        self.num_paths = len(self.paths)
+
     def __len__(self):
-        if self.obs:
+        if self.obs is not None:
             return self.obs.shape[0]
         else:
             return 0
@@ -30,6 +32,7 @@ class ReplayBuffer(object):
         # add new rollouts into our list of rollouts
         self.paths.extend(paths)
         self.paths = self.paths[-self.max_size:]
+        self.num_paths =len(self.paths)
 
         # convert new rollouts into their component arrays, and append them onto our arrays
         observations, actions, log_probs, next_observations, terminals, concatenated_rews, unconcatenated_rews = utils.convert_listofrollouts(paths)
@@ -68,7 +71,8 @@ class ReplayBuffer(object):
         return np.array(self.paths)[rand_indices]
 
     def sample_recent_rollouts(self, num_rollouts=1):
-        return np.array(self.paths)[-num_rollouts:].tolist()
+        return np.array(self.paths)[-num_rollouts:]
+        # return np.array(self.paths)[-num_rollouts:].tolist()
 
     def sample_all_rollouts(self):
         return np.array(self.paths)
