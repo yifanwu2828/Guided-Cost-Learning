@@ -77,7 +77,7 @@ def sample_trajectory(env,
                       expert=False
                       ) -> PathDict:
     """
-    Sample one trajectory
+    Sample a single trajectory and returns infos
     :param env: simulation environment
     :param policy: current policy or expert policy
     :param agent:
@@ -85,6 +85,7 @@ def sample_trajectory(env,
     :param render: visualize trajectory if render is True
     :param render_mode: 'human' or 'rgb_array'
     :param expert: sample from expert policy if True
+    :return: PathDict
     """
     assert isinstance(max_path_length, int)
     assert max_path_length >= 0
@@ -115,7 +116,6 @@ def sample_trajectory(env,
                 env.render(mode=render_mode)
                 # TODO: implement this in NAV_ENV
                 # time.sleep(env.model.opt.timestep)
-                # time.sleep(0.1)
 
         # use the most recent ob to decide what to do
         obs.append(ob)
@@ -149,13 +149,13 @@ def sample_trajectory(env,
 
         # end the rollout if (rollout can end due to done, or due to max_path_length)
         rollout_done = 0
-        if done or steps >= max_path_length:  # max_path_length == env.max_steps
+        if done or steps >= max_path_length:  # Assume max_path_length == env.max_steps
             rollout_done = 1  # HINT: this is either 0 or 1
         terminals.append(rollout_done)
 
         if rollout_done:
             break
-    # In GCL rewards will not be used
+    # In GCL true rewards will not be used
     return Path(obs, image_obs, acs, log_probs, rewards, next_obs, terminals)
 
 
@@ -168,6 +168,15 @@ def sample_trajectories(env, policy, agent,
                         ) -> Tuple[List[PathDict], int]:
     """
     Sample rollouts until we have collected batch_size trajectories
+    :param env: simulation environment
+    :param policy: current policy or expert policy
+    :param agent:
+    :param min_timesteps_per_batch:
+    :param max_path_length: max_path_length should equal to env.max_steps
+    :param render: visualize trajectory if render is True
+    :param render_mode: 'human' or 'rgb_array'
+    :param expert: sample from expert policy if True
+    :return: List[PathDict], timesteps_this_batch
     """
     assert isinstance(min_timesteps_per_batch, int) and isinstance(max_path_length, int)
     assert min_timesteps_per_batch > 0 and max_path_length > 0
@@ -197,9 +206,15 @@ def sample_n_trajectories(env, policy, agent,
                           expert=False
                           ) -> List[PathDict]:
     """
-    Collect ntraj rollouts.
-        use sample_trajectory to get each path (i.e. rollout) that goes into paths
-        collect n trajectories for video recording
+    :param env: simulation environment
+    :param policy: current policy or expert policy
+    :param agent:
+    :param ntrajs: number of trajectories need to collect
+    :param max_path_length: max_path_length should equal to env.max_steps
+    :param render: visualize trajectory if render is True
+    :param render_mode: 'human' or 'rgb_array'
+    :param expert: sample from expert policy if True
+    :return: List[PathDict]
     """
     assert isinstance(ntrajs, int) and isinstance(max_path_length, int)
     assert ntrajs > 0 and max_path_length > 0
@@ -220,8 +235,7 @@ def Path(obs: List[np.ndarray], image_obs: List[np.ndarray],
          terminals: List[int]
          ) -> Dict[str, np.ndarray]:
     """
-        Take info (separate arrays) from a single rollout
-        and return it in a single dictionary
+    Take info (separate arrays) from a single rollout and return it in a single dictionary
     """
     if image_obs != []:
         image_obs = np.stack(image_obs, axis=0)
@@ -258,6 +272,7 @@ def convert_listofrollouts(paths):
 ############################################
 
 def get_pathlength(path: PathDict) -> int:
+    """get number of steps in path"""
     return len(path["reward"])
 
 
