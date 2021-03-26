@@ -77,10 +77,11 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--env_name', type=str, default='NavEnv-v0')
     parser.add_argument('--exp_name', type=str, default='nav_env_irl')
-    parser.add_argument('--expert_policy', type=str,
-                        default='ppo_nav_env')  # relative to where you're running this script from
 
-    parser.add_argument('--expert_data', type=str, default='')  # relative to where you're running this script from
+    # relative to where you're running this script from
+    parser.add_argument('--expert_policy', type=str, default='ppo_nav_env')
+    parser.add_argument('--expert_data', type=str, default='')
+
     parser.add_argument(
         '--n_iter', '-n', type=int, default=10,
         help='Number of total iterations')
@@ -157,8 +158,8 @@ if __name__ == '__main__':
     ### RUN TRAINING
     ###################
     print("##### PARAM ########")
-    # params["expert_policy"] = os.path.join(path, "tmp/demo_agent", params["expert_policy"])
-    params["expert_policy"] = os.path.join(path, "ppo_nav_env")
+    # params["expert_policy"] = os.path.join(path, "ppo_nav_env")
+    params["expert_policy"] = "ppo_nav_env"
     params['n_iter'] = 10
     # Number of expert rollouts to add to demo replay buffer
     params['demo_size'] = 100
@@ -169,16 +170,16 @@ if __name__ == '__main__':
     # Number of current policy rollouts to add to replay buffer at each iteration
     # Number of reward updates per iteration
     # Number of policy updates per iteration
-    # Number of expert rollouts to sample from replay buffer per reward update
+    # Number of expert rollouts to sample from replay buffer per reward update  '''sample recent?'''
     # Number of policy rollouts to sample from replay buffer per reward update
-    # Number of transition steps to sample from replay buffer per policy update PG
+    # Number of transition steps to sample from replay buffer per policy update PG '''on-policy pg use fresh sample '''
 
-    params["batch_size"] = 20
     params["num_reward_train_steps_per_iter"] = 10  # K_r
-    params["num_policy_train_steps_per_iter"] = 50  # K_p
-    params["train_demo_batch_size"] = 10
-    params["train_sample_batch_size"] = 10
-    params["train_batch_size"] = 1000
+    params["num_policy_train_steps_per_iter"] = 1000  # K_p
+    params["train_demo_batch_size"] = 100
+    params["train_sample_batch_size"] = 100
+    params["batch_size"] = 1000
+    params["train_batch_size"] = params["batch_size"]
 
 
 
