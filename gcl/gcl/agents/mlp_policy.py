@@ -115,6 +115,7 @@ class MLPPolicyPG(MLPPolicy):
         )
         self.baseline_loss = nn.MSELoss()
 
+        # Policy
         self.optimizer = optim.Adam(
             itertools.chain([self.logstd], self.mean_net.parameters()),
             lr=self.learning_rate
@@ -145,8 +146,6 @@ class MLPPolicyPG(MLPPolicy):
         loss.backward()
         self.optimizer.step()
 
-        # # lr_scheduler
-        # self.scheduler.step(loss.item())
 
         # apply baseline to reduce variance
         # TODO: normalize the q_values to have a mean of zero and a standard deviation of one
