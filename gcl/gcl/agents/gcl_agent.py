@@ -127,25 +127,29 @@ class GCL_Agent(BaseAgent):
         else:
             self.sample_buffer.add_rollouts(paths)
 
-    def sample_rollouts(self, batch_size, demo=False):
+    def sample_rollouts(self, num_rollouts, demo=False) -> np.ndarray:
         """
         Sample paths from demo or sample buffer
+        :param: num_rollouts
+        :param: if demo sample from demo buffer, else sample from sample buffer
+        :return: random rollouts (paths) from buffer
         """
+        assert num_rollouts > 0
         if demo:
-            return self.demo_buffer.sample_random_rollouts(batch_size)
+            return self.demo_buffer.sample_random_rollouts(num_rollouts)
         else:
-            return self.sample_buffer.sample_random_rollouts(batch_size)
+            return self.sample_buffer.sample_random_rollouts(num_rollouts)
 
     def sample(self, batch_size, demo=False):
         """
-        Sample transition steps of size batch_size
+        Sample recent transition steps of size batch_size
         """
         if demo:
             return self.demo_buffer.sample_recent_data(batch_size, concat_rew=False)
         else:
             return self.sample_buffer.sample_recent_data(batch_size, concat_rew=False)
 
-    def sample_background_rollouts(self, batch_size=None, recent=False, all_rollouts=False):
+    def sample_background_rollouts(self, batch_size=None, recent=False, all_rollouts=False)-> np.ndarray:
 
         if all_rollouts:
             return self.background_buffer.sample_all_rollouts()
@@ -158,7 +162,7 @@ class GCL_Agent(BaseAgent):
     ################## HELPER FUNCTIONS #################
     #####################################################
 
-    def _discounted_cumsum(self, rewards):
+    def _discounted_cumsum(self, rewards) -> list:
         """
         Helper function which
         -takes a list of rewards {r_0, r_1, ..., r_t', ... r_T},
