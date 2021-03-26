@@ -54,10 +54,6 @@ class MLPReward(nn.Module):
             ],
             lr=self.learning_rate
         )
-        self.scheduler =torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer,
-                                                                   mode='min',
-                                                                   factor=0.5,
-                                                                   patience=3)
 
 
     def forward(self, observation: torch.FloatTensor, action: torch.FloatTensor) -> torch.FloatTensor:
@@ -89,16 +85,9 @@ class MLPReward(nn.Module):
         """
         demo_obs = ptu.from_numpy(demo_obs)
         demo_acs = ptu.from_numpy(demo_acs)
-        try:
-            sample_obs = ptu.from_numpy(sample_obs)
-            sample_acs = ptu.from_numpy(sample_acs)
-            log_probs = torch.squeeze(ptu.from_numpy(log_probs), dim=-1)
-
-        except:
-            import ipdb; ipdb.set_trace
-            print(f"sample_obs: {sample_obs}")
-            print(f"sample_acs: {sample_acs}")
-            print(f"log_probs: {log_probs}")
+        sample_obs = ptu.from_numpy(sample_obs)
+        sample_acs = ptu.from_numpy(sample_acs)
+        log_probs = torch.squeeze(ptu.from_numpy(log_probs), dim=-1)
 
         sum_log_probs = log_probs.sum(-1)
         
@@ -131,7 +120,6 @@ class MLPReward(nn.Module):
         loss.backward()
         self.optimizer.step()
 
-        self.scheduler.step(loss)
 
         train_reward_log = {"Training reward loss": ptu.to_numpy(loss)}
         return train_reward_log
