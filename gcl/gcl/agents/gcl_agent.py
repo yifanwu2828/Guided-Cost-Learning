@@ -1,10 +1,14 @@
 import numpy as np
+import torch
 
 from gcl.agents.mlp_policy import MLPPolicyPG
 from gcl.agents.base_agent import BaseAgent
 from gcl.agents.mlp_reward import MLPReward
 from gcl.scripts.replay_buffer import ReplayBuffer
 import gcl.scripts.utils as utils
+# set overflow warning to error instead
+np.seterr(all='raise')
+torch.autograd.set_detect_anomaly(True)
 
 
 class GCL_Agent(BaseAgent):
@@ -37,8 +41,9 @@ class GCL_Agent(BaseAgent):
         )
 
         # Replay buffers: demo holds expert demonstrations and sample holds policy samples
-        self.demo_buffer = ReplayBuffer(100000)
-        self.sample_buffer = ReplayBuffer(100000)
+        self.demo_buffer = ReplayBuffer(1000)
+        self.sample_buffer = ReplayBuffer(1000000)
+        self.background_buffer = ReplayBuffer(1000000)
 
     def train_reward(self, demo_batch, sample_batch):
         """
@@ -89,7 +94,7 @@ class GCL_Agent(BaseAgent):
         """
         # Estimate the advantage when nn_baseline is True,
         # by querying the neural network that you're using to learn the baseline
-        baselines_unnormalized = self.actor.run_baseline_prediction(obs)  # V(s)
+        baselines_unnormalized = self.actor.run_baseline_prediction(obs).reshape(-1, 1)  # V(s)
 
         # ensure that the baseline and q_values have the same dimensionality
         # to prevent silent broadcasting errors
@@ -110,12 +115,14 @@ class GCL_Agent(BaseAgent):
     #####################################################
     #####################################################
 
-    def add_to_buffer(self, paths, demo=False):
+    def add_to_buffer(self, paths, demo=False, background=False):
         """
         Add paths to demo or sample buffer
         """
         if demo:
             self.demo_buffer.add_rollouts(paths)
+        elif background:
+            self.background_buffer.add_rollouts(paths)
         else:
             self.sample_buffer.add_rollouts(paths)
 
@@ -128,17 +135,27 @@ class GCL_Agent(BaseAgent):
         else:
             return self.sample_buffer.sample_random_rollouts(batch_size)
 
-    def sample(self, batch_size):
+    def sample(self, batch_size, demo=False):
         """
         Sample transition steps of size batch_size
         """
-        return self.demo_buffer.sample_recent_data(batch_size, concat_rew=False)
+        if demo:
+            return self.demo_buffer.sample_recent_data(batch_size, concat_rew=False)
+        else:
+            return self.sample_buffer.sample_recent_data(batch_size, concat_rew=False)
 
+    def sample_background_rollouts(self, batch_size, recent=False, all_rollouts=False):
+
+        if all_rollouts:
+            return self.background_buffer.sample_all_rollouts()
+        elif recent:
+            return self.background_buffer.sample_recent_rollouts(batch_size)
+        else:
+            return self.background_buffer.sample_random_rollouts(batch_size)
 
     #####################################################
     ################## HELPER FUNCTIONS #################
     #####################################################
-
 
     def _discounted_cumsum(self, rewards):
         """
