@@ -1,7 +1,8 @@
 import numpy as np
 import time
 import torch
-
+import gym
+import gym_nav
 
 ############################################
 ############################################
@@ -59,20 +60,21 @@ def sample_trajectory(env, policy, agent, max_path_length, render=False, render_
         obs.append(ob)
         if expert:
             # stable_baselines3 implementation may need to change this
-            ac, _ = policy.predict(obs, deterministic=True)
+            # --- check this in every env
+            ac, _ = policy.predict(ob, deterministic=True)
+
             # expert demonstrations assume log_prob = 0
             log_prob = 0
         else:
             # query the policy's get_action function
             ac, log_prob = policy.get_action(ob)
-        # unpack ac to remove unwanted type and dim
-        ac = ac[0]
+            # unpack ac to remove unwanted type and dim --- check this in every env
+            ac = ac[0]
         acs.append(ac)
         log_probs.append(log_prob)
 
         # take that action and record results
         ob, rew, done, _ = env.step(ac)
-
         # record result of taking that action
         steps += 1
         next_obs.append(ob)
@@ -88,6 +90,9 @@ def sample_trajectory(env, policy, agent, max_path_length, render=False, render_
         rollout_done = 0
         if done or steps >= max_path_length:  # max_path_length == env.max_steps
             rollout_done = 1  # HINT: this is either 0 or 1
+            if render:
+                print(steps)
+                print(env.pos)
         terminals.append(rollout_done)
 
         if rollout_done:
@@ -124,7 +129,7 @@ def sample_trajectories(env, policy, agent,
 
 ########################################################################################
 
-def sample_n_trajectories(env, policy, agent, ntraj, max_path_length,
+def sample_n_trajectories(env, policy, agent, ntrajs, max_path_length,
                           render=False, render_mode=('rgb_array'),
                           expert=False):
     """
@@ -135,7 +140,7 @@ def sample_n_trajectories(env, policy, agent, ntraj, max_path_length,
     ntraj_paths = [sample_trajectory(env, policy, agent,
                                      max_path_length,
                                      render=render, render_mode=render_mode,
-                                     expert=expert) for _ in range(ntraj)
+                                     expert=expert) for _ in range(ntrajs)
                    ]
     return ntraj_paths
 
