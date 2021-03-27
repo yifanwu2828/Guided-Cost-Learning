@@ -29,7 +29,7 @@ def tic(message=None):
 
 ############################################
 ############################################
-def toc(t_start, name="Operation"):
+def toc(t_start, name="Operation") -> None:
     """ Timing Function """
     print(f'\n############ {name} took: {(time.time() - t_start):.4f} sec. ############\n')
 

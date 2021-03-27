@@ -1,5 +1,6 @@
 from typing import Union
 
+import numpy as np
 import torch
 from torch import nn
 
@@ -22,16 +23,14 @@ class PMILayer(nn.Module):
     def __init__(self, size_in):
         super().__init__()
         self.size_in, self.size_out = size_in, size_in*2
-        I = torch.eye(size_in)
-        weights = torch.vstack((I, -I))
+        eye = torch.eye(size_in)
+        weights = torch.vstack((eye, -eye))
         self.weights = nn.Parameter(weights, requires_grad=True)  # nn.Parameter is a Tensor that's a module parameter.
 
 
     def forward(self, x):
         w_times_x= torch.matmul(x, self.weights.t())
         return w_times_x
-
-
 
 
 def build_mlp(
@@ -125,7 +124,8 @@ def build_mlp_yt(
 device = None
 
 
-def init_gpu(use_gpu=True, gpu_id=0):
+def init_gpu(use_gpu=True, gpu_id=0) -> None:
+    """ init device('cuda:0' or 'cpu') """
     global device
     if torch.cuda.is_available() and use_gpu:
         device = torch.device("cuda:" + str(gpu_id))
@@ -135,15 +135,17 @@ def init_gpu(use_gpu=True, gpu_id=0):
         print("GPU not detected. Defaulting to CPU.")
 
 
-def set_device(gpu_id):
+def set_device(gpu_id) -> None:
     torch.cuda.set_device(gpu_id)
 
 
 def from_numpy(*args, **kwargs):
+    """ Convert numpy array to torch tensor  and send to device('cuda:0' or 'cpu') """
     return torch.from_numpy(*args, **kwargs).float().to(device)
 
 
-def to_numpy(tensor):
+def to_numpy(tensor: torch.FloatTensor) -> np.ndarray:
+    """ Convert torch tensor to numpy array and send to CPU """
     return tensor.to('cpu').detach().numpy()
 
 
