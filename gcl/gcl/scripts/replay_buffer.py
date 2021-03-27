@@ -1,5 +1,5 @@
 import numpy as np
-from typing import List, Tuple
+from typing import List, Tuple, Union
 import utils
 from utils import PathDict
 
@@ -11,8 +11,8 @@ class ReplayBuffer(object):
         self.max_size = max_size
         # store each rollout
         self.paths = []
-        self.num_paths = 0
-        self.num_data = 0
+        self.num_paths: int = 0
+        self.num_data: int = 0
         # store (concatenated) component arrays from each rollout
         self.obs = None
         self.acs = None
@@ -81,7 +81,7 @@ class ReplayBuffer(object):
         rand_indices = np.random.permutation(len(self.paths))[:num_rollouts]
         return np.array(self.paths)[rand_indices]
 
-    def sample_recent_rollouts(self, num_rollouts: int = 1) -> List:
+    def sample_recent_rollouts(self, num_rollouts: int = 1) -> np.ndarray:
         """
         Select Recent Rollouts
         :param: num_rollouts
@@ -92,8 +92,7 @@ class ReplayBuffer(object):
         assert isinstance(num_rollouts, int)
         assert len(self.paths) != 0, "No rollouts in Buffer"
         assert len(self.paths) >= num_rollouts, "Rollouts in Buffer is less than rollouts acquired "
-        # return np.array(self.paths)[-num_rollouts:]
-        return np.array(self.paths)[-num_rollouts:].tolist()
+        return np.array(self.paths)[-num_rollouts:]
 
     def sample_all_rollouts(self) -> np.ndarray:
         """
@@ -125,14 +124,14 @@ class ReplayBuffer(object):
     def sample_recent_data(self,
                            batch_size: int = 1,
                            concat_rew=True
-                           ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+                           ) -> Tuple[np.ndarray, np.ndarray, Union[np.ndarray, List], np.ndarray, np.ndarray]:
         """
         Sample recent transition steps of size batch_size
         :param batch_size: num of recent transition steps
         :param concat_rew:
         :return: observations, actions, unconcatenated_rews, next_observations, terminals
         """
-        assert isinstance(batch_size, int)
+        assert isinstance(batch_size, int) and batch_size >= 0
         assert len(self.paths) != 0, "No recent Data in Buffer"
         assert self.num_data >= batch_size, "Data in Buffer is less than data acquired "
         if concat_rew:
@@ -153,7 +152,7 @@ class ReplayBuffer(object):
              terminals, concatenated_rews, unconcatenated_rews) = utils.convert_listofrollouts(rollouts_to_return)
             return observations, actions, unconcatenated_rews, next_observations, terminals
 
-    def flush(self):
+    def flush(self) -> None:
         """ Reset Replay Buffer """
         self.paths = []
         self.obs = None
