@@ -1,5 +1,5 @@
 from typing_extensions import TypedDict
-from typing import Tuple, List, Dict
+from typing import Tuple, List, Union
 import time
 import numpy as np
 import torch
@@ -10,8 +10,9 @@ import gym_nav
 class PathDict(TypedDict):
     observation: np.ndarray
     image_obs: np.ndarray
-    reward: np.ndarray
     action: np.ndarray
+    log_prob: np.ndarray
+    reward: np.ndarray
     next_observation: np.ndarray
     terminal: np.ndarray
 
@@ -104,7 +105,6 @@ def sample_trajectory(env,
 
     steps = 0
     while True:
-
         # render image of the simulated env
         if render:
             if 'rgb_array' in render_mode:
@@ -124,8 +124,8 @@ def sample_trajectory(env,
             # --- check this in every env
             ac, _ = policy.predict(ob, deterministic=True)
 
-            # expert demonstrations assume log_prob = 0
-            log_prob = 0
+            # expert demonstrations assume log_prob = 0, convert to np array to keep consistency
+            log_prob = np.zeros(1, dtype=np.float32)
         else:
             # query the policy's get_action function
             ac, log_prob = policy.get_action(ob)
@@ -229,11 +229,11 @@ def sample_n_trajectories(env, policy, agent,
 ############################################
 ############################################
 
-def Path(obs: List[np.ndarray], image_obs: List[np.ndarray],
+def Path(obs: List[np.ndarray], image_obs: Union[List[np.ndarray]],
          acs: List[np.ndarray], log_probs: List[np.ndarray],
          rewards: List[np.ndarray], next_obs: List[np.ndarray],
          terminals: List[int]
-         ) -> Dict[str, np.ndarray]:
+         ) -> PathDict:
     """
     Take info (separate arrays) from a single rollout and return it in a single dictionary
     """
@@ -241,9 +241,9 @@ def Path(obs: List[np.ndarray], image_obs: List[np.ndarray],
         image_obs = np.stack(image_obs, axis=0)
     return {"observation": np.array(obs, dtype=np.float32),
             "image_obs": np.array(image_obs, dtype=np.uint8),
-            "reward": np.array(rewards, dtype=np.float32),
             "action": np.array(acs, dtype=np.float32),
             "log_prob": np.array(log_probs, dtype=np.float32),
+            "reward": np.array(rewards, dtype=np.float32),
             "next_observation": np.array(next_obs, dtype=np.float32),
             "terminal": np.array(terminals, dtype=np.float32)
             }
@@ -252,7 +252,8 @@ def Path(obs: List[np.ndarray], image_obs: List[np.ndarray],
 ############################################
 ############################################
 
-def convert_listofrollouts(paths):
+def convert_listofrollouts(paths: List[PathDict]
+                           ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, List]:
     """
         Take a list of rollout dictionaries
         and return separate arrays,
@@ -264,7 +265,7 @@ def convert_listofrollouts(paths):
     next_observations = np.concatenate([path["next_observation"] for path in paths])
     terminals = np.concatenate([path["terminal"] for path in paths])
     concatenated_rewards = np.concatenate([path["reward"] for path in paths])
-    unconcatenated_rewards = [path["reward"] for path in paths]
+    unconcatenated_rewards: List = [path["reward"] for path in paths]
     return observations, actions, log_probs, next_observations, terminals, concatenated_rewards, unconcatenated_rewards
 
 
