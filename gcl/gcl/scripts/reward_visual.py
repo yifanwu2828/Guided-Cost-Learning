@@ -232,10 +232,8 @@ if __name__ == '__main__':
                 policy_expert_dict["done"].append(done)
 
             action, _ = policy_model.get_action(obs)
-            print(action)
-            print(action.shape)
             action = action.reshape(-1)
-            print(action.shape)
+
             obs, reward, done, _ = env.step(action)
             policy_log_dict["act"].append(action)
             policy_log_dict["obs"].append(obs)
@@ -250,6 +248,5 @@ if __name__ == '__main__':
                 print(env.pos)
                 print(f"itr:{i}, step:{ep_len} -> done :{done}")
                 obs = env.reset()
-
                 t = i
         env.close()
