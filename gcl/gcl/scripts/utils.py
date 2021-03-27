@@ -6,6 +6,8 @@ import torch
 import gym
 import gym_nav
 
+from gcl.agents.base_agent import BaseAgent
+
 
 class PathDict(TypedDict):
     observation: np.ndarray
@@ -72,7 +74,7 @@ def evaluate_model(eval_env_id, model, num_episodes=1000, render=False):
 ########################################################################################
 def sample_trajectory(env,
                       policy,
-                      agent,
+                      agent: BaseAgent,
                       max_path_length: int,
                       render=False, render_mode: str = 'rgb_array',
                       expert=False
@@ -126,6 +128,7 @@ def sample_trajectory(env,
 
             # expert demonstrations assume log_prob = 0, convert to np array to keep consistency
             log_prob = np.zeros(1, dtype=np.float32)
+
         else:
             # query the policy's get_action function
             ac, log_prob = policy.get_action(ob)
@@ -161,7 +164,7 @@ def sample_trajectory(env,
 
 ########################################################################################
 
-def sample_trajectories(env, policy, agent,
+def sample_trajectories(env, policy, agent: BaseAgent,
                         min_timesteps_per_batch: int, max_path_length: int,
                         render=False, render_mode: str = 'rgb_array',
                         expert=False
@@ -200,7 +203,7 @@ def sample_trajectories(env, policy, agent,
 
 ########################################################################################
 
-def sample_n_trajectories(env, policy, agent,
+def sample_n_trajectories(env, policy, agent: BaseAgent,
                           ntrajs: int, max_path_length: int,
                           render=False, render_mode: str = 'rgb_array',
                           expert=False
@@ -229,7 +232,7 @@ def sample_n_trajectories(env, policy, agent,
 ############################################
 ############################################
 
-def Path(obs: List[np.ndarray], image_obs: Union[List[np.ndarray]],
+def Path(obs: List[np.ndarray], image_obs: Union[List[np.ndarray], List],
          acs: List[np.ndarray], log_probs: List[np.ndarray],
          rewards: List[np.ndarray], next_obs: List[np.ndarray],
          terminals: List[int]
