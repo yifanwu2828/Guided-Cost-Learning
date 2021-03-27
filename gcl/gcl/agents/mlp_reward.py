@@ -1,8 +1,10 @@
 import itertools
+from typing import List
+import numpy as np
 import torch
 from torch import nn
 from torch import optim
-import torch.nn.functional as F
+
 from gcl.scripts import pytorch_util as ptu
 
 # set overflow warning to error instead
@@ -64,14 +66,15 @@ class MLPReward(nn.Module):
         y = self.mlp(observation)
         z = torch.matmul(y, self.A) + self.b
         cost = (z * z).sum(-1) + self.w * (action * action).sum(-1)
-        assert self.w.item()>=0
+        assert self.w.item() >= 0
         # print(cost)
         # reward = - torch.sigmoid(cost)
         reward = - cost
         # print(reward)
         return reward
 
-    def update(self, demo_obs, demo_acs, sample_obs, sample_acs, log_probs):
+    def update(self, demo_obs: List[np.ndarray], demo_acs: List[np.ndarray],
+               sample_obs: List[np.ndarray], sample_acs: List[np.ndarray], sample_log_probs: List[np.ndarray]) -> dict:
         """
         Computes the loss and updates the reward parameters
         Objective is to maximize sum of demo rewards and minimize sum of sample rewards
@@ -83,16 +86,32 @@ class MLPReward(nn.Module):
           = 1/N sum_{i=1}^N return(tau_i) - log (sum_j exp(return(tau_j)) * w(tau_j) / sum_j w(tau_j))
         where w(tau) = p(tau) / q(tau) = 1 / prod_t pi(a_t|s_t) 
         """
-        demo_obs = ptu.from_numpy(demo_obs)
-        demo_acs = ptu.from_numpy(demo_acs)
-        sample_obs = ptu.from_numpy(sample_obs)
-        sample_acs = ptu.from_numpy(sample_acs)
-        log_probs = torch.squeeze(ptu.from_numpy(log_probs), dim=-1)
+        assert len(demo_obs) == len(demo_acs)
+        assert len(sample_obs) == len(sample_acs) == len(sample_log_probs)
+        # Demo Return
+        demo_rollouts_return = []
+        for demo_ob, demo_ac in zip(demo_obs, demo_acs):
+            demo_ob, demo_ac = np.array(demo_ob, dtype=np.float32), np.array(demo_ac, dtype=np.float32)
+            demo_rew = self(ptu.from_numpy(demo_ob), ptu.from_numpy(demo_ac))
+            demo_rollouts_return.append(demo_rew.sum(-1))
+        demo_return = torch.stack(demo_rollouts_return)
 
-        sum_log_probs = log_probs.sum(-1)
-        
-        demo_return = self(demo_obs, demo_acs).sum(-1)
-        sample_return = self(sample_obs, sample_acs).sum(-1)
+        # Sample Return
+        sample_rollouts_return = []
+        sample_rollouts_logprob = []
+        for sample_ob, sample_ac, sample_log_prob in zip(sample_obs, sample_acs, sample_log_probs):
+            sample_ob, sample_ac = np.array(sample_ob, dtype=np.float32), np.array(sample_ac, dtype=np.float32)
+            sample_rew = self(ptu.from_numpy(sample_ob), ptu.from_numpy(sample_ac))
+            sample_rollouts_return.append(sample_rew.sum(-1))
+
+            assert isinstance(sample_log_prob, np.ndarray)
+            sample_log_prob = torch.squeeze(ptu.from_numpy(sample_log_prob), dim=-1)
+            sum_log_prob = sample_log_prob.sum(-1)
+            sample_rollouts_logprob.append(sum_log_prob)
+
+        sample_return = torch.stack(sample_rollouts_return)
+        sum_log_probs = torch.stack(sample_rollouts_logprob)
+        # print(sum_log_probs.size())
         '''
         wj  = exp(sum(r)) / prod(exp(log_prob))
             = exp(sum(r)) / exp(sum(log_prob))
@@ -103,6 +122,7 @@ class MLPReward(nn.Module):
         x = sample_return - sum_log_probs
         weights = torch.exp(x - torch.logsumexp(x, -1))
         assert abs(weights.sum(-1).item() - 1) <= 1e-2
+        # print(weights)
 
         demo_loss = torch.mean(demo_return)
         sample_loss = torch.sum(weights * sample_return)
