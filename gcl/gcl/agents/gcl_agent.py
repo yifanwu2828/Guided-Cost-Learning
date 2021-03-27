@@ -137,7 +137,7 @@ class GCL_Agent(BaseAgent):
 
     def sample_rollouts(self, num_rollouts: int, demo=False) -> np.ndarray:
         """
-        Sample paths from demo or sample buffer
+        Randomly sample paths from demo or sample buffer
         :param: num_rollouts
         :param: if demo sample from demo buffer, else sample from sample buffer
         :return: random rollouts (paths) from buffer
@@ -147,6 +147,19 @@ class GCL_Agent(BaseAgent):
             return self.demo_buffer.sample_random_rollouts(num_rollouts)
         else:
             return self.sample_buffer.sample_random_rollouts(num_rollouts)
+
+    def sample_recent_rollouts(self, num_rollouts: int, demo=False) -> np.ndarray:
+        """
+        Sample recent paths from demo or sample buffer
+        :param: num_rollouts
+        :param: if demo sample from demo buffer, else sample from sample buffer
+        :return: random rollouts (paths) from buffer
+        """
+        assert num_rollouts > 0 and isinstance(num_rollouts, int)
+        if demo:
+            return self.demo_buffer.sample_recent_rollouts(num_rollouts)
+        else:
+            return self.sample_buffer.sample_recent_rollouts(num_rollouts)
 
     def sample(self, batch_size: int, demo=False):
         """
@@ -158,8 +171,9 @@ class GCL_Agent(BaseAgent):
         else:
             return self.sample_buffer.sample_recent_data(batch_size, concat_rew=False)
 
-    def sample_background_rollouts(self, batch_size: Optional[int], recent=False, all_rollouts=False) -> np.ndarray:
-
+    def sample_background_rollouts(self, batch_size: Optional[int] = 1000,
+                                   recent=False, all_rollouts=False) -> np.ndarray:
+        assert not (recent and all_rollouts)
         if all_rollouts:
             return self.background_buffer.sample_all_rollouts()
         elif recent:
