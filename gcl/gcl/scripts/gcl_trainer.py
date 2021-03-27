@@ -1,5 +1,6 @@
 import pickle
 import time
+from functools import lru_cache
 from collections import OrderedDict
 from typing import List, Optional, Tuple, Any
 
@@ -123,7 +124,6 @@ class GCL_Trainer(object):
         # 1. Add demonstrations to replay buffer
         demo_paths, _, _ = self.collect_demo_trajectories(expert_data, expert_policy,
                                                           ntrajs=self.params['demo_size'],
-                                                          demo_batch_size=self.params['demo_batch_size'],
                                                           render=False, verbose=True)
         self.agent.add_to_buffer(demo_paths, demo=True)
         print(f'\nNum of Demo rollouts collected:{self.agent.demo_buffer.num_paths}')
@@ -134,13 +134,12 @@ class GCL_Trainer(object):
         # 2.
         n_iter_loop = tqdm(range(n_iter), desc="Guided Cost Learning", leave=False)
         for itr in n_iter_loop:
-            print("\n")
-            print("********** Iteration {} ************".format(itr))
-            # decide if videos should be rendered/logged at this iteration
+            print(f"\n********** Iteration {itr} ************")
 
             # TODO: uncomment this and delete follow
             self.log_video = False
             self.log_metrics = False
+            # decide if videos should be rendered/logged at this iteration
             # if itr % self.params['video_log_freq'] == 0 and self.params['video_log_freq'] != -1:
             #     self.log_video = True
             # else:
@@ -159,17 +158,13 @@ class GCL_Trainer(object):
             # On-policy PG need to collect new trajectories at *every* iteration
             with torch.no_grad():
                 samp_paths, envsteps_this_batch, _ = self.collect_training_trajectories(
-                    collect_policy, self.params['batch_size']
+                    collect_policy, self.params['sample_size']
                 )
-            self.total_envsteps += envsteps_this_batch
+            # self.total_envsteps += envsteps_this_batch
 
             # 4. Append samples D_traj to D_samp
             self.agent.add_to_buffer(samp_paths)
-
-            print(f"Demo_buffer_size: {len(self.agent.demo_buffer)}, {self.agent.demo_buffer.num_data}")
-            print(f"Sample_buffer_size: {len(self.agent.sample_buffer)}, {self.agent.sample_buffer.num_data}")
-            print(f"Back_buffer_size: {len(self.agent.background_buffer)}, {self.agent.background_buffer.num_data}")
-            print("##########################################################################")
+            self.buffer_status()
 
             # 5. Use D_{samp} to update cost c_{\theta}
             reward_logs = self.train_reward()  # Algorithm 2
@@ -184,7 +179,8 @@ class GCL_Trainer(object):
                 # self.perform_logging(itr, paths, eval_policy, train_video_paths, reward_logs, policy_logs)
 
                 if self.params['save_params']:
-                    self.agent.save('{}/agent_itr_{}.pt'.format(self.params['logdir'], itr))
+                    # self.agent.save('{}/agent_itr_{}.pt'.format(self.params['logdir'], itr))
+                    pass
 
             for r, p in zip(reward_logs, policy_logs):
                 reward_loss = float(r['Training reward loss'])
@@ -197,6 +193,7 @@ class GCL_Trainer(object):
         return train_log_lst, policy_log_lst
 
     ############################################################################################
+    @lru_cache(maxsize=3)
     def collect_demo_trajectories(self,
                                   expert_data: Optional[str] = None, expert_policy: Optional[str] = None,
                                   ntrajs: int = 100, demo_batch_size: int = 1000,
@@ -211,7 +208,7 @@ class GCL_Trainer(object):
             paths: a list of trajectories with len = self.params['demo_size']
                     each trajectory is a dict {obs, image_obs, acs, log_probs, rewards, next_obs, terminals}
         """
-        assert expert_data is not None and expert_policy is not None, "Choose either expert_data or expert_policy"
+        assert not (expert_data and expert_policy), "Choose either expert_data or expert_policy"
         # Init var
         render_mode = 'human' if render else 'rgb_array'
         envsteps_this_batch = 0
@@ -260,12 +257,12 @@ class GCL_Trainer(object):
             train_video_paths: paths which also contain videos for visualization purposes
         """
         print("\nCollecting sample trajectories to be used for training...")
-
-        paths, envsteps_this_batch = utils.sample_trajectories(
+        envsteps_this_batch = None
+        paths: List[PathDict] = utils.sample_n_trajectories(
             self.env,
             policy=collect_policy,
             agent=self.agent,
-            min_timesteps_per_batch=batch_size,
+            ntrajs=batch_size,
             max_path_length=self.params['ep_len'],
             render=False,
             expert=False
@@ -300,32 +297,22 @@ class GCL_Trainer(object):
             # 2. Sample demonstration batch D^_{demo} \subset D_{demo}
             demo_batch = self.agent.sample_rollouts(self.params['train_demo_batch_size'], demo=True)
             # 3. Sample background batch D^_{samp} \subset D_{sample}
-            sample_batch = self.agent.sample_rollouts(self.params['train_sample_batch_size'])
-
-            print(f"Add {len(demo_batch)} demo rollouts to background batch")
-            print(f"Add {len(sample_batch)} sample rollouts to background batch")
-            print("##########################################################################")
+            sample_batch = self.agent.sample_recent_rollouts(self.params['train_sample_batch_size'])
 
             # reshape rollouts' elements to match the dimension in Replay buffer
             for num_rollout, _ in enumerate(demo_batch):
                 demo_batch[num_rollout]["log_prob"] = demo_batch[num_rollout]["log_prob"].reshape(-1, 1)
                 demo_batch[num_rollout]["reward"] = demo_batch[num_rollout]["reward"].reshape(-1, 1)
-                # print(demo_batch[num_rollout]["reward"])
 
             # 4. Append \hat{D}_demo and \hat{D}_samp to background
-            # self.agent.add_to_buffer(demo_batch, background=True)
-            # self.agent.add_to_buffer(sample_batch, background=True)
+            self.agent.add_to_buffer(demo_batch, background=True)
+            self.agent.add_to_buffer(sample_batch, background=True)
 
-            print(f"Demo_buffer_size: {len(self.agent.demo_buffer)}, {self.agent.demo_buffer.num_data}")
-            print(f"Sample_buffer_size: {len(self.agent.sample_buffer)}, {self.agent.sample_buffer.num_data}")
-            print("##########################################################################")
-
-            for demo, sample in zip(demo_batch, sample_batch):
-                print(demo['observation'].shape)
-                print(sample['observation'].shape)
+            background_batch = self.agent.sample_background_rollouts(all_rollouts=True)
 
             # 5,6. Estimate gradient loss and update parameters
-            reward_log = self.agent.train_reward(demo_batch, sample_batch)
+            # reward_log = self.agent.train_reward(demo_batch, sample_batch)
+            reward_log = self.agent.train_reward(demo_batch, background_batch)
             reward_logs.append(reward_log)
 
             self.agent.background_buffer.flush()
@@ -437,3 +424,16 @@ class GCL_Trainer(object):
             print('Done logging...\n\n')
 
             self.logger.flush()
+
+    def buffer_status(self) -> None:
+        """ Show length and size of buffers"""
+        demo_paths_len = len(self.agent.demo_buffer)
+        samp_paths_len = len(self.agent.sample_buffer)
+        demo_data_len = self.agent.demo_buffer.num_data
+        samp_data_len = self.agent.sample_buffer.num_data
+        print(f"Demo_buffer_size: {demo_paths_len}, {demo_data_len}"
+              f" Average ep_len: {demo_data_len / demo_paths_len}")
+        print(f"Sample_buffer_size: {samp_paths_len}, {samp_data_len}"
+              f" Average ep_len: {samp_data_len / samp_paths_len}")
+        print(f"Back_buffer_size: {len(self.agent.background_buffer)}, {self.agent.background_buffer.num_data}")
+        print("##########################################################################")
