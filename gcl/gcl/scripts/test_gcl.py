@@ -4,6 +4,7 @@ import time
 
 import numpy as np
 import torch
+from torch import multiprocessing
 import matplotlib.pyplot as plt
 import gym
 import gym_nav
@@ -12,7 +13,7 @@ from gcl.agents.gcl_agent import GCL_Agent
 from utils import tic, toc
 
 
-class IRL_Trainer():
+class IRL_Trainer(object):
 
     def __init__(self, params):
         #####################
@@ -46,7 +47,7 @@ class IRL_Trainer():
 
         self.gcl_trainer = GCL_Trainer(self.params)
 
-    def run_training_loop(self):
+    def run_training_loop(self) -> tuple:
         train_log_lst, policy_log_lst = self.gcl_trainer.run_training_loop(
             self.params['n_iter'],
             collect_policy=self.gcl_trainer.agent.actor,
@@ -57,7 +58,7 @@ class IRL_Trainer():
         return train_log_lst, policy_log_lst
 
 
-def removeOutliers(x, outlierConstant=1.5):
+def removeOutliers(x, outlierConstant=1.5) -> list:
     a = np.array(x)
     upper_quartile = np.percentile(a, 75)
     lower_quartile = np.percentile(a, 25)
@@ -73,6 +74,7 @@ if __name__ == '__main__':
     # set overflow warning to error instead
     np.seterr(all='raise')
     torch.autograd.set_detect_anomaly(True)
+    multiprocessing.set_start_method('fork')
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--env_name', '-env', type=str, default='NavEnv-v0')
@@ -90,7 +92,7 @@ if __name__ == '__main__':
         help='Number of expert rollouts to add to replay buffer'
     )
     parser.add_argument(
-        '--batch_size', type=int, default=10,
+        '--sample_size', type=int, default=10,
         help='Number of current policy rollouts to add to replay buffer at each iteration'
     )
     parser.add_argument(
@@ -160,27 +162,33 @@ if __name__ == '__main__':
     print("##### PARAM ########")
     # params["expert_policy"] = os.path.join(path, "ppo_nav_env")
     params["expert_policy"] = "ppo_nav_env"
-    params['n_iter'] = 10
-    # Number of expert rollouts to add to demo replay buffer
-    params['demo_size'] = 100
-    params['discount'] = 0.99
-    params["learning_rate"] = 5e-3
-    print(params)
 
+    # Number of iteration of training loop
     # Number of current policy rollouts to add to replay buffer at each iteration
     # Number of reward updates per iteration
     # Number of policy updates per iteration
     # Number of expert rollouts to sample from replay buffer per reward update  '''sample recent?'''
     # Number of policy rollouts to sample from replay buffer per reward update
-    # Number of transition steps to sample from replay buffer per policy update PG '''on-policy pg use fresh sample '''
+    # Number of transition steps to sample from demo replay buffer at beginning
+    # Number of transition steps to sample from sample replay buffer per policy update PG
+    params['n_iter'] = 20
 
-    params["num_reward_train_steps_per_iter"] = 10  # K_r
-    params["num_policy_train_steps_per_iter"] = 1000  # K_p
-    params["train_demo_batch_size"] = 100
-    params["train_sample_batch_size"] = 100
-    params["batch_size"] = 100
-    params["train_batch_size"] = 100
+    params["num_reward_train_steps_per_iter"] = 50  # K_r
+    params["num_policy_train_steps_per_iter"] = 800  # K_p
 
+    params['demo_size'] = 200                # number of rollouts add to demo buffer per itr in outer loop
+    params["sample_size"] = 100               # number of rollouts add to sample buffer per itr in outer loop
+
+    params["train_demo_batch_size"] = 100   # number of rollouts sample from demo buffer in train reward
+    params["train_sample_batch_size"] = 100  # number of rollouts sample from sample buffer in train reward
+
+    assert params["sample_size"] >= params["train_sample_batch_size"]
+    assert params['demo_size'] >= params["train_demo_batch_size"]
+    params["train_batch_size"] = 100*20
+
+    params['discount'] = 0.99
+    params["learning_rate"] = 5e-3
+    print(params)
 
 
     trainer = IRL_Trainer(params)
