@@ -16,11 +16,12 @@ from stable_baselines3.common.env_checker import check_env
 from stable_baselines3.common.evaluation import evaluate_policy
 
 
-def evaluate(model, num_episodes=100, env_id = 'NavEnv-v0',):
+def evaluate(model, num_episodes=100, env_id='NavEnv-v0',):
     """
     Evaluate a RL agent
     :param model: (BaseRLModel object) the RL Agent
     :param num_episodes: (int) number of episodes to evaluate it
+    :param env_id
     :return: (float) Mean reward for the last num_episodes
     """
     # This function will only work for a single Environment
