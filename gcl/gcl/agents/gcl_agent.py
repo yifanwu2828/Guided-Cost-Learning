@@ -1,3 +1,4 @@
+from typing import Callable, Iterator, Union, Optional, List
 import numpy as np
 import torch
 
@@ -6,6 +7,7 @@ from gcl.agents.base_agent import BaseAgent
 from gcl.agents.mlp_reward import MLPReward
 from gcl.scripts.replay_buffer import ReplayBuffer
 import gcl.scripts.utils as utils
+from gcl.scripts.utils import PathDict
 
 # set overflow warning to error instead
 np.seterr(all='raise')
@@ -13,7 +15,7 @@ torch.autograd.set_detect_anomaly(True)
 
 
 class GCL_Agent(BaseAgent):
-    def __init__(self, env, agent_params):
+    def __init__(self, env, agent_params: dict):
         super(GCL_Agent, self).__init__()
 
         # init vars
@@ -46,16 +48,22 @@ class GCL_Agent(BaseAgent):
         self.sample_buffer = ReplayBuffer(1000000)
         self.background_buffer = ReplayBuffer(1000000)
 
-    def train_reward(self, demo_batch, sample_batch):
+    def train_reward(self, demo_batch: np.ndarray, sample_batch: np.ndarray) -> dict:
         """
         Train the reward function
+        :param demo_batch: demo rollouts
+        :param sample_batch: sample rollouts
+        :return: reward_log
+        :type: dict
         """
-        demo_obs = np.array([demo['observation'] for demo in demo_batch])
-        demo_acs = np.array([demo['action'] for demo in demo_batch])
-        sample_obs = np.array([sample['observation'] for sample in sample_batch])
-        sample_acs = np.array([sample['action'] for sample in sample_batch])
-        sample_log_probs = np.array([sample['log_prob'] for sample in sample_batch])
+        # unpack rollouts into obs, act, log_probs
+        demo_obs = [demo_path['observation'] for demo_path in demo_batch]
+        demo_acs = [demo_path['action'] for demo_path in demo_batch]
+        sample_obs = [sample_path['observation'] for sample_path in sample_batch]
+        sample_acs = [sample_path['action'] for sample_path in sample_batch]
+        sample_log_probs = [sample_path['log_prob'] for sample_path in sample_batch]
 
+        # Estimate gradient loss and update parameters
         reward_log = self.reward.update(demo_obs, demo_acs, sample_obs, sample_acs, sample_log_probs)
 
         return reward_log
@@ -78,7 +86,7 @@ class GCL_Agent(BaseAgent):
 
         return train_log
 
-    def calculate_q_vals(self, rewards_list):
+    def calculate_q_vals(self, rewards_list: List) -> np.ndarray:
         """
         Monte Carlo estimation of the Q function.
         """
@@ -89,7 +97,7 @@ class GCL_Agent(BaseAgent):
 
         return q_values
 
-    def estimate_advantage(self, obs, q_values):
+    def estimate_advantage(self, obs, q_values: np.ndarray) -> np.ndarray:
         """
         Computes advantages by subtracting a baseline from the estimated Q values
         """
@@ -116,7 +124,7 @@ class GCL_Agent(BaseAgent):
     #####################################################
     #####################################################
 
-    def add_to_buffer(self, paths, demo=False, background=False):
+    def add_to_buffer(self, paths: Union[PathDict, List[PathDict]], demo=False, background=False):
         """
         Add paths to demo or sample buffer
         """
@@ -127,7 +135,7 @@ class GCL_Agent(BaseAgent):
         else:
             self.sample_buffer.add_rollouts(paths)
 
-    def sample_rollouts(self, num_rollouts, demo=False) -> np.ndarray:
+    def sample_rollouts(self, num_rollouts: int, demo=False) -> np.ndarray:
         """
         Sample paths from demo or sample buffer
         :param: num_rollouts
@@ -140,29 +148,32 @@ class GCL_Agent(BaseAgent):
         else:
             return self.sample_buffer.sample_random_rollouts(num_rollouts)
 
-    def sample(self, batch_size, demo=False):
+    def sample(self, batch_size: int, demo=False):
         """
         Sample recent transition steps of size batch_size
         """
+        assert isinstance(batch_size, int) and batch_size >= 0
         if demo:
             return self.demo_buffer.sample_recent_data(batch_size, concat_rew=False)
         else:
             return self.sample_buffer.sample_recent_data(batch_size, concat_rew=False)
 
-    def sample_background_rollouts(self, batch_size=None, recent=False, all_rollouts=False)-> np.ndarray:
+    def sample_background_rollouts(self, batch_size: Optional[int], recent=False, all_rollouts=False) -> np.ndarray:
 
         if all_rollouts:
             return self.background_buffer.sample_all_rollouts()
         elif recent:
+            assert isinstance(batch_size, int) and batch_size >= 0
             return self.background_buffer.sample_recent_rollouts(batch_size)
         else:
+            assert isinstance(batch_size, int) and batch_size >= 0
             return self.background_buffer.sample_random_rollouts(batch_size)
 
     #####################################################
     ################## HELPER FUNCTIONS #################
     #####################################################
 
-    def _discounted_cumsum(self, rewards) -> list:
+    def _discounted_cumsum(self, rewards: list) -> list:
         """
         Helper function which
         -takes a list of rewards {r_0, r_1, ..., r_t', ... r_T},
