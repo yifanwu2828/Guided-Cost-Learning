@@ -1,6 +1,6 @@
 import time
 from collections import OrderedDict
-from typing import List, Dict, Optional, Tuple, Any, Sequence
+from typing import List, Dict, Tuple, Any, Sequence
 
 import gym
 import gym_nav
@@ -13,11 +13,6 @@ import utils
 from utils import PathDict
 from logger import Logger
 from gcl.agents.base_policy import BasePolicy
-
-
-# set overflow warning to error instead
-np.seterr(all='raise')
-torch.autograd.set_detect_anomaly(True)
 
 # how many rollouts to save as videos to tensorboard
 MAX_NVIDEO = 2
@@ -123,9 +118,20 @@ class RL_Trainer(object):
         n_iter_loop = tqdm(range(n_iter), desc="Policy Gradient", leave=False)
         for itr in n_iter_loop:
             print(f"\n********** Iteration {itr} ************")
-            # not log for now
-            self.log_video = False
-            self.log_metrics = False
+            # decide if videos should be rendered/logged at this iteration
+            if itr % self.params['video_log_freq'] == 0 and self.params['video_log_freq'] != -1:
+                self.log_video = True
+            else:
+                self.log_video = False
+            self.log_video = self.log_video
+
+            # decide if metrics should be logged
+            if self.params['scalar_log_freq'] == -1:
+                self.log_metrics = False
+            elif itr % self.params['scalar_log_freq'] == 0:
+                self.log_metrics = True
+            else:
+                self.log_metrics = False
 
             # collect trajectories, to be used for training
             with torch.no_grad():
@@ -136,20 +142,22 @@ class RL_Trainer(object):
 
             # add collected data to replay buffer
             self.agent.add_to_replay_buffer(paths)
+            self.buffer_status()
 
             # train agent (using sampled data from replay buffer)
             train_logs = self.train_policy()
-            train_logs = train_logs[0]['Training_Loss']
-            train_logs_lst.append(train_logs)
+            train_logs_out = train_logs[0]['Training_Loss']
+            train_logs_lst.append(train_logs_out)
+
             # log/save
             if self.log_video or self.log_metrics:
                 # perform logging
                 print('\nBeginning logging procedure...')
-                # self.perform_logging(itr, paths, eval_policy, train_video_paths, train_logs)
+                self.perform_logging(itr, paths, eval_policy, train_video_paths, train_logs)
 
                 if self.params['save_params']:
                     self.agent.save('{}/agent_itr_{}.pt'.format(self.params['logdir'], itr))
-            n_iter_loop.set_postfix(Training_Loss=train_logs)
+            n_iter_loop.set_postfix(Training_Loss=train_logs_out)
 
         return train_logs_lst
 
@@ -174,8 +182,11 @@ class RL_Trainer(object):
 
         print("\nCollecting data to be used for training...")
         paths, envsteps_this_batch = utils.sample_trajectories(
-            env=self.env, policy=collect_policy, agent=self.agent,
-            min_timesteps_per_batch=batch_size, max_path_length=self.params['ep_len']
+            env=self.env,
+            policy=collect_policy,
+            agent=self.agent,
+            min_timesteps_per_batch=batch_size,
+            max_path_length=self.params['ep_len']
         )
 
         return paths, envsteps_this_batch, train_video_paths
@@ -193,3 +204,85 @@ class RL_Trainer(object):
             train_policy_logs.append(train_log)
 
         return train_policy_logs
+
+    def perform_logging(self, itr, paths, eval_policy, train_video_paths, all_logs):
+
+        last_log = all_logs[-1]
+
+        #######################
+
+        # collect eval trajectories, for logging
+        print("\nCollecting data for eval...")
+        with torch.no_grad():
+            eval_returns = utils.sample_trajectories(self.env,
+                                                     eval_policy, self.agent,
+                                                     min_timesteps_per_batch=self.params['eval_batch_size'],
+                                                     max_path_length=self.params['ep_len']
+                                                     )
+            eval_paths, eval_envsteps_this_batch = eval_returns
+
+        # save eval rollouts as videos in tensorboard event file
+        if self.log_video and train_video_paths is not None:
+            print('\nCollecting video rollouts eval')
+            with torch.no_grad():
+                eval_video_paths = utils.sample_n_trajectories(self.env, eval_policy, self.agent,
+                                                               MAX_NVIDEO, MAX_VIDEO_LEN, True)
+
+            # save train/eval videos
+            print('\nSaving train rollouts as videos...')
+            self.logger.log_paths_as_videos(train_video_paths, itr, fps=self.fps, max_videos_to_save=MAX_NVIDEO,
+                                            video_title='train_rollouts')
+            self.logger.log_paths_as_videos(eval_video_paths, itr, fps=self.fps, max_videos_to_save=MAX_NVIDEO,
+                                            video_title='eval_rollouts')
+
+        #######################
+
+        # save eval metrics
+        if self.log_metrics:
+            # returns, for logging
+            train_returns = [path["reward"].sum() for path in paths]
+            eval_returns = [eval_path["reward"].sum() for eval_path in eval_paths]
+
+            # episode lengths, for logging
+            train_ep_lens = [len(path["reward"]) for path in paths]
+            eval_ep_lens = [len(eval_path["reward"]) for eval_path in eval_paths]
+
+            # decide what to log
+            logs = OrderedDict()
+            logs["Eval_AverageReturn"] = np.mean(eval_returns)
+            logs["Eval_StdReturn"] = np.std(eval_returns)
+            logs["Eval_MaxReturn"] = np.max(eval_returns)
+            logs["Eval_MinReturn"] = np.min(eval_returns)
+            logs["Eval_AverageEpLen"] = np.mean(eval_ep_lens)
+
+            logs["Train_AverageReturn"] = np.mean(train_returns)
+            logs["Train_StdReturn"] = np.std(train_returns)
+            logs["Train_MaxReturn"] = np.max(train_returns)
+            logs["Train_MinReturn"] = np.min(train_returns)
+            logs["Train_AverageEpLen"] = np.mean(train_ep_lens)
+
+            logs["Train_EnvstepsSoFar"] = self.total_envsteps
+            logs["TimeSinceStart"] = time.time() - self.start_time
+            logs.update(last_log)
+
+            if itr == 0:
+                self.initial_return = np.mean(train_returns)
+            logs["Initial_DataCollection_AverageReturn"] = self.initial_return
+
+            # perform the logging
+            print("---------------------------------------------------")
+            for key, value in logs.items():
+                print(f'|\t{key} : {value:.3f}')
+                self.logger.log_scalar(value, key, itr)
+            print("---------------------------------------------------")
+            print('Done logging...\n\n')
+
+            self.logger.flush()
+
+    def buffer_status(self) -> None:
+        """ Show length and size of buffers"""
+        samp_paths_len = len(self.agent.sample_buffer)
+        samp_data_len = self.agent.sample_buffer.num_data
+        print(f"Sample_buffer_size: {samp_paths_len}, {samp_data_len}"
+              f" Average ep_len: {samp_data_len / samp_paths_len :.3f}")
+        print("##########################################################################")
