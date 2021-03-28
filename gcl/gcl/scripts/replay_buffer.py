@@ -7,62 +7,168 @@ from gcl.scripts.utils import PathDict
 class ReplayBuffer(object):
 
     def __init__(self, max_size=1000000):
+        assert isinstance(max_size, int)
+        self._max_size: int = max_size
 
-        self.max_size = max_size
         # store each rollout
-        self.paths = []
-        self.num_paths: int = 0
-        self.num_data: int = 0
-        # store (concatenated) component arrays from each rollout
-        self.obs = None
-        self.acs = None
-        self.log_probs = None
-        self.concatenated_rews = None
-        self.unconcatenated_rews = None
-        self.next_obs = None
-        self.terminals = None
+        self._paths: List[PathDict] = []
+        self._num_paths: int = 0
+        self._num_data: int = 0
 
-    def __len__(self):
+        # store (concatenated) component arrays from each rollout
+        self._obs = None
+        self._acs = None
+        self._log_probs = None
+        self._concatenated_rews = None
+        self._unconcatenated_rews = None
+        self._next_obs = None
+        self._terminals = None
+
+    @property
+    def max_size(self) -> int:
+        return self._max_size
+
+    @property
+    def paths(self) -> List[PathDict]:
+        return self._paths
+
+    @paths.setter
+    def paths(self, value):
+        assert isinstance(value, np.ndarray) or isinstance(value, list)
+        self._paths = value
+
+    @property
+    def num_paths(self) -> int:
+        return self._num_paths
+
+    @num_paths.setter
+    def num_paths(self, new_len):
+        assert isinstance(new_len, int)
+        self._num_paths = new_len
+
+    @property
+    def num_data(self) -> int:
+        return self._num_data
+
+    @num_data.setter
+    def num_data(self, new_size):
+        assert isinstance(new_size, int)
+        self._num_data = new_size
+
+    @property
+    def obs(self):
+        return self._obs
+
+    @obs.setter
+    def obs(self, value):
+        assert isinstance(value, np.ndarray) or isinstance(value, list)
+        self._obs = value
+
+    @property
+    def acs(self):
+        return self._acs
+
+    @acs.setter
+    def acs(self, value):
+        assert isinstance(value, np.ndarray) or isinstance(value, list)
+        self._acs = value
+
+    @property
+    def log_probs(self):
+        return self._log_probs
+
+    @log_probs.setter
+    def log_probs(self, value):
+        assert isinstance(value, np.ndarray) or isinstance(value, list)
+        self._log_probs = value
+
+    @property
+    def concatenated_rews(self):
+        return self._concatenated_rews
+
+    @concatenated_rews.setter
+    def concatenated_rews(self, value):
+        assert isinstance(value, np.ndarray) or isinstance(value, list)
+        self._concatenated_rews = value
+
+    @property
+    def unconcatenated_rews(self):
+        return self._unconcatenated_rews
+
+    @unconcatenated_rews.setter
+    def unconcatenated_rews(self, value):
+        assert isinstance(value, np.ndarray) or isinstance(value, list)
+        self._unconcatenated_rews = value
+
+    @property
+    def next_obs(self):
+        return self._next_obs
+
+    @next_obs.setter
+    def next_obs(self, value):
+        assert isinstance(value, np.ndarray) or isinstance(value, list)
+        self._next_obs = value
+
+    @property
+    def terminals(self):
+        return self._terminals
+
+    @terminals.setter
+    def terminals(self, value):
+        assert isinstance(value, np.ndarray) or isinstance(value, list)
+        self._terminals = value
+
+    ##################################
+    ##################################
+
+    def __len__(self) -> int:
         return len(self.paths)
 
-    def add_rollouts(self, paths: List[PathDict]):
+    def __repr__(self) -> str:
+        return f"ReplayBuffer: ({self._num_paths}, {self._num_data})"
+
+    ##################################
+    ##################################
+
+    def add_rollouts(self, paths: List[PathDict]) -> None:
         """ Add new rollouts into our list of rollouts """
         assert len(paths) > 0, "Adding empty rollout"
         self.paths.extend(paths)
-        if len(self.paths) > self.max_size:
+        if len(self.paths) > self._max_size:
             print("###########################")
-            print(f"Exceed buffer max_size {self.max_size} by {len(self.paths) - self.max_size}, old path will be "
+            print(f"Exceed buffer max_size {self._max_size} by {len(self.paths) - self._max_size}, old path will be "
                   f"dropped")
         # if size exceed buffer's max size, drop old rollouts and keep new on instead
-        self.paths = self.paths[-self.max_size:]
-        self.num_paths =len(self.paths)
+        self.paths = self.paths[-self._max_size:]
+        self._num_paths = len(self.paths)
 
         # convert new rollouts into their component arrays, and append them onto our arrays
         (observations, actions, log_probs,
          next_observations, terminals,
          concatenated_rews, unconcatenated_rews) = utils.convert_listofrollouts(paths)
 
-        if self.obs is None:
-            self.obs = observations[-self.max_size:]
-            self.acs = actions[-self.max_size:]
-            self.log_probs = log_probs[-self.max_size:]
-            self.next_obs = next_observations[-self.max_size:]
-            self.terminals = terminals[-self.max_size:]
-            self.concatenated_rews = concatenated_rews[-self.max_size:]
-            self.unconcatenated_rews = unconcatenated_rews[-self.max_size:]
+        # self.paths is empty, init elements with max_size
+        if self._obs is None:
+            self._obs = observations[-self._max_size:]
+            self._acs = actions[-self._max_size:]
+            self._log_probs = log_probs[-self._max_size:]
+            self._next_obs = next_observations[-self._max_size:]
+            self._terminals = terminals[-self._max_size:]
+            self._concatenated_rews = concatenated_rews[-self._max_size:]
+            self._unconcatenated_rews = unconcatenated_rews[-self._max_size:]
+        # Append elements in new paths to paths and keep only latest max_size around
         else:
-            # keep only latest max_size around
-            self.obs = np.concatenate([self.obs, observations])[-self.max_size:]
-            self.acs = np.concatenate([self.acs, actions])[-self.max_size:]
-            self.log_probs = np.concatenate([self.log_probs, log_probs])[-self.max_size:]
-            self.next_obs = np.concatenate([self.next_obs, next_observations])[-self.max_size:]
-            self.terminals = np.concatenate([self.terminals, terminals])[-self.max_size:]
-            self.concatenated_rews = np.concatenate([self.concatenated_rews, concatenated_rews])[-self.max_size:]
+            self._obs = np.concatenate([self._obs, observations])[-self._max_size:]
+            self._acs = np.concatenate([self._acs, actions])[-self._max_size:]
+            self._log_probs = np.concatenate([self._log_probs, log_probs])[-self._max_size:]
+            self._next_obs = np.concatenate([self._next_obs, next_observations])[-self._max_size:]
+            self._terminals = np.concatenate([self._terminals, terminals])[-self._max_size:]
+            self._concatenated_rews = np.concatenate([self._concatenated_rews, concatenated_rews])[-self._max_size:]
             if isinstance(unconcatenated_rews, list):
-                self.unconcatenated_rews += unconcatenated_rews
+                self._unconcatenated_rews += unconcatenated_rews
             else:
-                self.unconcatenated_rews.append(unconcatenated_rews)
-        self.num_data = self.obs.shape[0]
+                self._unconcatenated_rews.append(unconcatenated_rews)
+        self._num_data = self._obs.shape[0]
 
     ########################################
     ########################################
@@ -100,7 +206,7 @@ class ReplayBuffer(object):
         :return: random rollouts
         :type: np.array(List[PathDict])
         """
-        assert len(self.paths)!= 0, "No rollouts in Buffer"
+        assert len(self.paths) != 0, "No rollouts in Buffer"
         return np.array(self.paths)
 
     ########################################
@@ -112,14 +218,14 @@ class ReplayBuffer(object):
         """
         assert isinstance(batch_size, int)
         assert len(self.paths) != 0, "No path in Buffer"
-        assert 0 <= batch_size <= self.obs.shape[0], "No enough transition steps in buffer"
-        assert (self.obs.shape[0] == self.acs.shape[0]
-                == self.concatenated_rews.shape[0]
-                == self.next_obs.shape[0] == self.terminals.shape[0]), "num of data do not match"
+        assert 0 <= batch_size <= self._obs.shape[0], "No enough transition steps in buffer"
+        assert (self._obs.shape[0] == self._acs.shape[0]
+                == self._concatenated_rews.shape[0]
+                == self._next_obs.shape[0] == self._terminals.shape[0]), "num of data do not match"
 
-        rand_indices = np.random.permutation(self.obs.shape[0])[:batch_size]
-        return (self.obs[rand_indices], self.acs[rand_indices], self.concatenated_rews[rand_indices],
-                self.next_obs[rand_indices], self.terminals[rand_indices])
+        rand_indices = np.random.permutation(self._obs.shape[0])[:batch_size]
+        return (self._obs[rand_indices], self._acs[rand_indices], self._concatenated_rews[rand_indices],
+                self._next_obs[rand_indices], self._terminals[rand_indices])
 
     def sample_recent_data(self,
                            batch_size: int = 1,
@@ -133,11 +239,11 @@ class ReplayBuffer(object):
         """
         assert isinstance(batch_size, int) and batch_size >= 0
         assert len(self.paths) != 0, "No recent Data in Buffer"
-        assert self.num_data >= batch_size, "Data in Buffer is less than data acquired "
+        assert self._num_data >= batch_size, "Data in Buffer is less than data acquired "
         if concat_rew:
-            return (self.obs[-batch_size:], self.acs[-batch_size:],
-                    self.concatenated_rews[-batch_size:], self.next_obs[-batch_size:],
-                    self.terminals[-batch_size:])
+            return (self._obs[-batch_size:], self._acs[-batch_size:],
+                    self._concatenated_rews[-batch_size:], self._next_obs[-batch_size:],
+                    self._terminals[-batch_size:])
         else:
             num_recent_rollouts_to_return = 0
             num_datapoints_so_far = 0
@@ -148,19 +254,21 @@ class ReplayBuffer(object):
                 num_recent_rollouts_to_return +=1
                 num_datapoints_so_far += utils.get_pathlength(recent_rollout)
             rollouts_to_return = self.paths[-num_recent_rollouts_to_return:]
+
             (observations, actions, log_probs, next_observations,
              terminals, concatenated_rews, unconcatenated_rews) = utils.convert_listofrollouts(rollouts_to_return)
+
             return observations, actions, unconcatenated_rews, next_observations, terminals
 
     def flush(self) -> None:
         """ Reset Replay Buffer """
-        self.paths = []
-        self.obs = None
-        self.acs = None
-        self.log_probs = None
-        self.concatenated_rews = None
-        self.unconcatenated_rews = None
-        self.next_obs = None
-        self.terminals = None
-        self.num_paths = 0
-        self.num_data = 0
+        self._paths = []
+        self._obs = None
+        self._acs = None
+        self._log_probs = None
+        self._concatenated_rews = None
+        self._unconcatenated_rews = None
+        self._next_obs = None
+        self._terminals = None
+        self._num_paths = 0
+        self._num_data = 0
