@@ -2,7 +2,7 @@ import pickle
 import time
 from functools import lru_cache
 from collections import OrderedDict
-from typing import List, Optional, Tuple, Any
+from typing import List, Optional, Tuple, Dict, Sequence, Any
 
 import gym
 import gym_nav
@@ -73,8 +73,7 @@ class GCL_Trainer(object):
 
         # Observation and action sizes
         ob_dim = self.env.observation_space.shape if is_img else self.env.observation_space.shape[0]
-
-        ac_dim = self.env.action_space.n if discrete else self.env.action_space.shape[0]  # assume cts action space
+        ac_dim = self.env.action_space.n if discrete else self.env.action_space.shape[0]
         self.params['agent_params']['ac_dim'] = ac_dim
         self.params['agent_params']['ob_dim'] = ob_dim
 
@@ -132,8 +131,8 @@ class GCL_Trainer(object):
                                                           ntrajs=self.params['demo_size'],
                                                           render=False, verbose=True)
         self.agent.add_to_buffer(demo_paths, demo=True)
-        print(f'\nNum of Demo rollouts collected:{self.agent.demo_buffer.num_paths}')
-        print(f'Num of Demo transition steps collected:{self.agent.demo_buffer.num_data}')
+        print(f'\nNum of Demo rollouts collected:{self.agent.demo_buffer._num_paths}')
+        print(f'Num of Demo transition steps collected:{self.agent.demo_buffer._num_data}')
         utils.toc(self.start_time, "Finish Loading Expert Demonstrations")
 
         #####################################################################
@@ -142,7 +141,7 @@ class GCL_Trainer(object):
         for itr in n_iter_loop:
             print(f"\n********** Iteration {itr} ************")
 
-            # TODO: uncomment this and delete follow
+            # TODO: not log for now, uncomment this and delete follow
             self.log_video = False
             self.log_metrics = False
             # decide if videos should be rendered/logged at this iteration
@@ -163,9 +162,11 @@ class GCL_Trainer(object):
             # collect trajectories, to be used for training
             # On-policy PG need to collect new trajectories at *every* iteration
             with torch.no_grad():
-                samp_paths, envsteps_this_batch, _ = self.collect_training_trajectories(
+
+                training_returns = self.collect_training_trajectories(
                     collect_policy, self.params['sample_size']
                 )
+            samp_paths, envsteps_this_batch, train_video_paths = training_returns
             # self.total_envsteps += envsteps_this_batch
 
             # 4. Append samples D_traj to D_samp
@@ -191,7 +192,7 @@ class GCL_Trainer(object):
             for r, p in zip(reward_logs, policy_logs):
                 reward_loss = float(r['Training reward loss'])
                 train_log_lst.append(reward_loss)
-                policy_loss = float(p['Training Loss'])
+                policy_loss = float(p["Training_Loss"])
                 policy_log_lst.append(policy_loss)
 
             # update progress bar
@@ -256,7 +257,7 @@ class GCL_Trainer(object):
     def collect_training_trajectories(self, collect_policy: BasePolicy, batch_size: int):
         """
         :param collect_policy:  the current policy which we use to collect data
-        :param batch_size:  the number of trajectories to collect
+        :param batch_size:  the number of transition steps or trajectories to collect
         :return:
             paths: a list trajectories
             envsteps_this_batch: the sum over the numbers of environment steps in paths
@@ -265,7 +266,7 @@ class GCL_Trainer(object):
         print("\nCollecting sample trajectories to be used for training...")
         envsteps_this_batch = 0
         paths: List[PathDict] = utils.sample_n_trajectories(
-            self.env,
+            env=self.env,
             policy=collect_policy,
             agent=self.agent,
             ntrajs=batch_size,
@@ -329,9 +330,9 @@ class GCL_Trainer(object):
         return reward_logs
 
     ############################################################################################
-    def train_policy(self):
+    def train_policy(self) -> List[Sequence[Dict[str, np.ndarray]]]:
         """
-        Guided policy search or PG
+        Guided policy search or Policy Gradient
         """
         print('\nTraining agent using sampled data from replay buffer...')
         train_policy_logs = []
@@ -431,15 +432,21 @@ class GCL_Trainer(object):
 
             self.logger.flush()
 
-    def buffer_status(self) -> None:
+    def buffer_status(self, demo=True, samp=True, background=True) -> None:
         """ Show length and size of buffers"""
-        demo_paths_len = len(self.agent.demo_buffer)
-        samp_paths_len = len(self.agent.sample_buffer)
-        demo_data_len = self.agent.demo_buffer.num_data
-        samp_data_len = self.agent.sample_buffer.num_data
-        print(f"Demo_buffer_size: {demo_paths_len}, {demo_data_len}"
-              f" Average ep_len: {demo_data_len / demo_paths_len}")
-        print(f"Sample_buffer_size: {samp_paths_len}, {samp_data_len}"
-              f" Average ep_len: {samp_data_len / samp_paths_len}")
-        print(f"Back_buffer_size: {len(self.agent.background_buffer)}, {self.agent.background_buffer.num_data}")
+        if demo:
+            demo_paths_len = len(self.agent.demo_buffer)
+            demo_data_len = self.agent.demo_buffer.num_data
+            print(f"Demo_buffer_size: {demo_paths_len}, {demo_data_len}"
+                  f" Average ep_len: {demo_data_len / demo_paths_len}")
+        if samp:
+            samp_paths_len = len(self.agent.sample_buffer)
+            samp_data_len = self.agent.sample_buffer.num_data
+            print(f"Sample_buffer_size: {samp_paths_len}, {samp_data_len}"
+                  f" Average ep_len: {samp_data_len / samp_paths_len}")
+        if background:
+            back_paths_len = len(self.agent.background_buffer)
+            back_data_len = self.agent.background_buffer.num_data
+        print(f"Back_buffer_size: {len(self.agent.background_buffer)}, {self.agent.background_buffer.num_data}"
+              f" Average ep_len: {back_data_len / back_paths_len :.3f} ")
         print("##########################################################################")
