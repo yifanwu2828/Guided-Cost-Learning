@@ -55,7 +55,14 @@ def evaluate_model(eval_env_id, model, num_episodes=1000, render=False):
         done = False
         obs = eval_env.reset()
         while not done:
-            action, _states = model.predict(obs, deterministic=True)
+            try:
+                # stable-baselines3 implementation
+                action, _states = model.predict(obs, deterministic=True)
+            except:
+                # our implementation
+                action, log_prob = model.get_action(obs)
+                action = action[0]
+
             # here, action, rewards and dones are arrays
             obs, reward, done, info = eval_env.step(action)
             episode_rewards.append(reward)
@@ -71,6 +78,61 @@ def evaluate_model(eval_env_id, model, num_episodes=1000, render=False):
     return mean_episode_reward, std_episode_reward
 
 
+########################################################################################
+########################################################################################
+# # This version of function is used for PG test
+# def sample_trajectory(env, policy, agent: BaseAgent,
+#                       max_path_length, render=False, render_mode=('rgb_array'), expert=None):
+#     # initialize env for the beginning of a new rollout
+#     # HINT: should be the output of resetting the env
+#     ob = env.reset()
+#
+#     # init vars
+#     obs, acs, log_probs, rewards, next_obs, terminals, image_obs = [], [], [], [], [], [], []
+#     steps = 0
+#     while True:
+#
+#         # render image of the simulated env
+#         if render:
+#             if 'rgb_array' in render_mode:
+#                 if hasattr(env, 'sim'):
+#                     image_obs.append(env.sim.render(camera_name='track', height=500, width=500)[::-1])
+#                 else:
+#                     image_obs.append(env.render(mode=render_mode))
+#             if 'human' in render_mode:
+#                 env.render(mode=render_mode)
+#                 time.sleep(env.model.opt.timestep)
+#
+#         # use the most recent ob to decide what to do
+#         obs.append(ob)
+#         # HINT: query the policy's get_action function
+#         ac, log_prob = policy.get_action(ob)
+#         ac = ac[0]
+#         acs.append(ac)
+#         log_probs.append(log_prob)
+#         # take that action and record results
+#         ob, rew, done, _ = env.step(ac)
+#
+#         # record result of taking that action
+#         steps += 1
+#         next_obs.append(ob)
+#         rewards.append(rew)
+#
+#         # HINT: rollout can end due to done, or due to max_path_length
+#         # HINT: this is either 0 or 1
+#
+#         rollout_done = 0
+#         if done or steps >= max_path_length:
+#             rollout_done = 1
+#         terminals.append(rollout_done)
+#
+#         if rollout_done:
+#             break
+#
+#     return Path(obs, image_obs, acs, log_probs, rewards, next_obs, terminals)
+
+
+########################################################################################
 ########################################################################################
 def sample_trajectory(env,
                       policy,
@@ -160,7 +222,6 @@ def sample_trajectory(env,
             break
     # In GCL true rewards will not be used
     return Path(obs, image_obs, acs, log_probs, rewards, next_obs, terminals)
-
 
 ########################################################################################
 
