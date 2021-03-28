@@ -9,7 +9,6 @@ import gym
 import gym_nav
 from gcl.scripts.rl_trainer import RL_Trainer
 from gcl.agents.pg_agent import PGAgent
-import gcl.scripts.utils as utils
 from gcl.scripts.utils import tic, toc
 
 
@@ -174,4 +173,3 @@ if __name__ == '__main__':
 
     policy_model = torch.load(fname2)
     policy_model.eval()
-    utils.evaluate_model(eval_env_id=params["env_name"], model=policy_model, num_episodes=500, render=False)
