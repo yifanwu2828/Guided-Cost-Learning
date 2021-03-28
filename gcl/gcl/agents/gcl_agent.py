@@ -1,4 +1,6 @@
+from abc import ABCMeta
 from typing import Callable, Iterator, Union, Optional, List
+
 import numpy as np
 import torch
 
@@ -14,7 +16,7 @@ np.seterr(all='raise')
 torch.autograd.set_detect_anomaly(True)
 
 
-class GCL_Agent(BaseAgent):
+class GCL_Agent(BaseAgent, metaclass=ABCMeta):
     def __init__(self, env, agent_params: dict):
         super(GCL_Agent, self).__init__()
 
@@ -29,7 +31,9 @@ class GCL_Agent(BaseAgent):
             self.agent_params['ob_dim'],
             self.agent_params['n_layers'],
             self.agent_params['size'],
-            learning_rate=self.agent_params['learning_rate']
+            discrete=self.agent_params['discrete'],
+            learning_rate=self.agent_params['learning_rate'],
+            nn_baseline=self.agent_params['nn_baseline']
         )
         # TODO: Add Guided Policy Search (GPS) policy
 
@@ -68,6 +72,8 @@ class GCL_Agent(BaseAgent):
 
         return reward_log
 
+    ##################################################################################################
+
     def train_policy(self, observations, actions, rewards_list, next_observations, terminals):
         """
         Training a PG agent refers to updating its actor using the given observations/actions
@@ -86,7 +92,7 @@ class GCL_Agent(BaseAgent):
 
         return train_log
 
-    def calculate_q_vals(self, rewards_list: List) -> np.ndarray:
+    def calculate_q_vals(self, rewards_list: List[List[float]]) -> np.ndarray:
         """
         Monte Carlo estimation of the Q function.
         """
@@ -103,6 +109,8 @@ class GCL_Agent(BaseAgent):
         """
         # Estimate the advantage when nn_baseline is True,
         # by querying the neural network that you're using to learn the baseline
+
+        # baseline
         baselines_unnormalized = self.actor.run_baseline_prediction(obs).reshape(-1, 1)  # V(s)
 
         # ensure that the baseline and q_values have the same dimensionality
@@ -184,10 +192,10 @@ class GCL_Agent(BaseAgent):
             return self.background_buffer.sample_random_rollouts(batch_size)
 
     #####################################################
-    ################## HELPER FUNCTIONS #################
+    #                  HELPER FUNCTIONS                 #
     #####################################################
 
-    def _discounted_cumsum(self, rewards: list) -> list:
+    def _discounted_cumsum(self, rewards: List[float]) -> List[float]:
         """
         Helper function which
         -takes a list of rewards {r_0, r_1, ..., r_t', ... r_T},

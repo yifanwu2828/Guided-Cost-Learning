@@ -14,6 +14,7 @@ from tqdm import tqdm
 import pytorch_util as ptu
 import utils
 from utils import PathDict
+from gcl.agents.base_policy import BasePolicy
 from logger import Logger
 
 # set overflow warning to error instead
@@ -42,6 +43,7 @@ class GCL_Trainer(object):
         seed = self.params['seed']
         np.random.seed(seed)
         torch.manual_seed(seed)
+        torch.cuda.manual_seed(seed)
 
         # init gpu
         ptu.init_gpu(
@@ -58,17 +60,21 @@ class GCL_Trainer(object):
         self.env.seed(seed)
 
         # Maximum length for episodes
-        self.params['ep_len'] = self.env.max_steps
+        self.params['ep_len'] = self.env.max_steps  # TODO: may need to change this for different ENV
         global MAX_VIDEO_LEN
         MAX_VIDEO_LEN = self.params['ep_len']
+
+        # Is this env continuous, or self.discrete?
+        discrete = isinstance(self.env.action_space, gym.spaces.Discrete)
+        self.params['agent_params']['discrete'] = discrete
 
         # Are the observations images?
         is_img = len(self.env.observation_space.shape) > 2
 
         # Observation and action sizes
         ob_dim = self.env.observation_space.shape if is_img else self.env.observation_space.shape[0]
-        # assume continuous action space
-        ac_dim = self.env.action_space.shape[0]
+
+        ac_dim = self.env.action_space.n if discrete else self.env.action_space.shape[0]  # assume cts action space
         self.params['agent_params']['ac_dim'] = ac_dim
         self.params['agent_params']['ob_dim'] = ob_dim
 
@@ -247,7 +253,7 @@ class GCL_Trainer(object):
 
         ############################################################################################
 
-    def collect_training_trajectories(self, collect_policy, batch_size: int):
+    def collect_training_trajectories(self, collect_policy: BasePolicy, batch_size: int):
         """
         :param collect_policy:  the current policy which we use to collect data
         :param batch_size:  the number of trajectories to collect
@@ -257,7 +263,7 @@ class GCL_Trainer(object):
             train_video_paths: paths which also contain videos for visualization purposes
         """
         print("\nCollecting sample trajectories to be used for training...")
-        envsteps_this_batch = None
+        envsteps_this_batch = 0
         paths: List[PathDict] = utils.sample_n_trajectories(
             self.env,
             policy=collect_policy,
