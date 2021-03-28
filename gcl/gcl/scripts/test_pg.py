@@ -65,6 +65,9 @@ if __name__ == '__main__':
     np.seterr(all='raise')
     torch.autograd.set_detect_anomaly(True)
 
+    torch.backends.cudnn.benchmark = True
+
+
     parser = argparse.ArgumentParser()
     parser.add_argument('--env_name', '-env', type=str, default='NavEnv-v0')
     parser.add_argument('--exp_name', '-exp', type=str, default='testPG')
@@ -103,7 +106,7 @@ if __name__ == '__main__':
     parser.add_argument('--no_gpu', '-ngpu', action='store_true')
     parser.add_argument('--which_gpu', '-gpu_id', default=0)
     parser.add_argument('--video_log_freq', type=int, default=-1)  # -1 not log video
-    parser.add_argument('--scalar_log_freq', type=int, default=-1000)
+    parser.add_argument('--scalar_log_freq', type=int, default=1)
     parser.add_argument('--save_params', action='store_true', default=False)
 
     args = parser.parse_args()
@@ -113,7 +116,7 @@ if __name__ == '__main__':
 
 
     ##################################
-    ### CREATE DIRECTORY FOR LOGGING
+    # CREATE DIRECTORY FOR LOGGING
     ##################################
 
     data_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../data')
@@ -129,18 +132,6 @@ if __name__ == '__main__':
 
     # Setting param
 
-    # params["num_reward_train_steps_per_iter"] = 100  # K_r
-    # params["num_policy_train_steps_per_iter"] = 1000  # K_p
-
-    # params['demo_size'] = 200                # number of rollouts add to demo buffer per itr in outer loop
-    # params["sample_size"] = 100               # number of rollouts add to sample buffer per itr in outer loop
-
-    # params["train_demo_batch_size"] = 100   # number of rollouts sample from demo buffer in train reward
-    # params["train_sample_batch_size"] = 100  # number of rollouts sample from sample buffer in train reward
-
-    # assert params["sample_size"] >= params["train_sample_batch_size"]
-    # assert params['demo_size'] >= params["train_demo_batch_size"]
-
     params['n_iter'] = 100
     params["batch_size"] = 5000
     params["train_batch_size"] = params["batch_size"]
@@ -151,7 +142,7 @@ if __name__ == '__main__':
 
 
     ###################
-    ### RUN TRAINING
+    # RUN TRAINING
     ###################
     start_train = tic()
     trainer = PG_Trainer(params)

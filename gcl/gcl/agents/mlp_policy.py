@@ -53,7 +53,7 @@ class MLPPolicy(BasePolicy, nn.Module, metaclass=abc.ABCMeta):
             self.optimizer = optim.Adam(self.logits_na.parameters(),
                                         self.learning_rate
                                         )
-        # We Only consider continuous action space
+
         # Continuous action space
         else:
             self.logits_na = None  # using in discrete action space
