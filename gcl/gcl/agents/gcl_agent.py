@@ -1,15 +1,16 @@
 from abc import ABCMeta
-from typing import Callable, Iterator, Union, Optional, List
+from typing import Optional, List
+from functools import reduce
+from itertools import accumulate
 
 import numpy as np
 import torch
 
-from gcl.agents.mlp_policy import MLPPolicyPG
-from gcl.agents.base_agent import BaseAgent
-from gcl.agents.mlp_reward import MLPReward
+from .mlp_policy import MLPPolicyPG
+from .base_agent import BaseAgent
+from .mlp_reward import MLPReward
 from gcl.scripts.replay_buffer import ReplayBuffer
-import gcl.scripts.utils as utils
-from gcl.scripts.utils import PathDict
+from gcl.scripts.utils import PathDict, normalize
 
 # set overflow warning to error instead
 np.seterr(all='raise')
@@ -17,6 +18,11 @@ torch.autograd.set_detect_anomaly(True)
 
 
 class GCL_Agent(BaseAgent, metaclass=ABCMeta):
+    gamma: float
+    standardize_advantages: bool
+    nn_baseline: bool
+    reward_to_go: bool
+
     def __init__(self, env, agent_params: dict):
         super(GCL_Agent, self).__init__()
 
@@ -24,6 +30,10 @@ class GCL_Agent(BaseAgent, metaclass=ABCMeta):
         self.env = env
         self.agent_params = agent_params
         self.gamma = self.agent_params['gamma']
+
+        self.standardize_advantages = self.agent_params['standardize_advantages']
+        self.nn_baseline = self.agent_params['nn_baseline']
+        self.reward_to_go = self.agent_params['reward_to_go']
 
         # actor/policy
         self.actor = MLPPolicyPG(
@@ -74,11 +84,11 @@ class GCL_Agent(BaseAgent, metaclass=ABCMeta):
 
     ##################################################################################################
 
-    def train_policy(self, observations, actions, rewards_list, next_observations, terminals):
+    def train_policy(self, observations, actions, rewards_list,
+                     next_observations, terminals) -> dict:
         """
         Training a PG agent refers to updating its actor using the given observations/actions
-        and the calculated qvals/advantages that come from the seen rewards.
-        TODO: Add training for GPS policy
+        and the calculated q_vals/advantages that come from the seen rewards.
         """
         # step 1: calculate q values of each (s_t, a_t) point, using rewards (r_0, ..., r_t, ..., r_T)
         q_values = self.calculate_q_vals(rewards_list)
@@ -87,7 +97,6 @@ class GCL_Agent(BaseAgent, metaclass=ABCMeta):
         advantages = self.estimate_advantage(observations, q_values)
 
         # step 3: use all datapoints (s_t, a_t, q_t, adv_t) to update the PG actor/policy
-        # HINT: `train_log` should be returned by your actor update method
         train_log = self.actor.update(observations, actions, advantages, q_values)
 
         return train_log
@@ -96,10 +105,21 @@ class GCL_Agent(BaseAgent, metaclass=ABCMeta):
         """
         Monte Carlo estimation of the Q function.
         """
+        # Case 1: trajectory-based PG
+        # Estimate Q^{pi}(s_t, a_t) by the total discounted reward summed over entire trajectory
+        if not self.reward_to_go:
+
+            # For each point (s_t, a_t), associate its value as being the discounted sum of rewards over the full traj
+            # In other words: value of (s_t, a_t) = sum_{t'=0}^T gamma^t' r_{t'}
+            q_values = np.concatenate([self._discounted_return(r) for r in rewards_list])
+
+        # Case 2: reward-to-go PG
         # Estimate Q^{pi}(s_t, a_t) by the discounted sum of rewards starting from t
-        # For each point (s_t, a_t), associate its value as being the discounted sum of rewards over the full trajectory
-        # In other words: value of (s_t, a_t) = sum_{t'=t}^T gamma^(t'-t) * r_{t'}
-        q_values = np.concatenate([self._discounted_cumsum(r) for r in rewards_list])
+        else:
+
+            # For each point (s_t, a_t), associate its value as being the discounted sum of rewards over the full traj
+            # In other words: value of (s_t, a_t) = sum_{t'=t}^T gamma^(t'-t) * r_{t'}
+            q_values = np.concatenate([self._discounted_cumsum(r) for r in rewards_list])
 
         return q_values
 
@@ -109,30 +129,34 @@ class GCL_Agent(BaseAgent, metaclass=ABCMeta):
         """
         # Estimate the advantage when nn_baseline is True,
         # by querying the neural network that you're using to learn the baseline
+        if self.nn_baseline:
+            baselines_unnormalized = self.actor.run_baseline_prediction(obs)
 
-        # baseline
-        baselines_unnormalized = self.actor.run_baseline_prediction(obs).reshape(-1, 1)  # V(s)
+            # ensure that the baseline and q_values have the same dimensionality
+            # to prevent silent broadcasting errors
+            assert baselines_unnormalized.ndim == q_values.ndim
 
-        # ensure that the baseline and q_values have the same dimensionality
-        # to prevent silent broadcasting errors
-        assert baselines_unnormalized.ndim == q_values.ndim
+            # baseline was trained with standardized q_values, so ensure that the predictions
+            # have the same mean and standard deviation as the current batch of q_values
+            baselines = baselines_unnormalized * np.std(q_values) + np.mean(q_values)
 
-        # baseline was trained with standardized q_values, so ensure that the predictions
-        # have the same mean and standard deviation as the current batch of q_values
-        baselines = baselines_unnormalized * np.std(q_values) + np.mean(q_values)
+            # compute advantage estimates using q_values and baselines
+            advantages = q_values - baselines
 
-        # Compute advantage estimates using q_values and baselines
-        advantages = q_values - baselines
+        # Else, just set the advantage to [Q]
+        else:
+            advantages = q_values.copy()
 
-        # Standardize resulting advantages to have a mean of zero and a standard deviation of one
-        advantages = utils.normalize(advantages, np.mean(advantages), np.std(advantages))
+        # Normalize the resulting advantages
+        if self.standardize_advantages:
+            advantages = normalize(q_values, np.mean(q_values), np.std(q_values))
 
         return advantages
 
     #####################################################
     #####################################################
 
-    def add_to_buffer(self, paths: Union[PathDict, List[PathDict]], demo=False, background=False):
+    def add_to_buffer(self, paths: List[PathDict], demo=False, background=False):
         """
         Add paths to demo or sample buffer
         """
@@ -142,6 +166,9 @@ class GCL_Agent(BaseAgent, metaclass=ABCMeta):
             self.background_buffer.add_rollouts(paths)
         else:
             self.sample_buffer.add_rollouts(paths)
+
+    #####################################################
+    #####################################################
 
     def sample_rollouts(self, num_rollouts: int, demo=False) -> np.ndarray:
         """
@@ -156,6 +183,7 @@ class GCL_Agent(BaseAgent, metaclass=ABCMeta):
         else:
             return self.sample_buffer.sample_random_rollouts(num_rollouts)
 
+
     def sample_recent_rollouts(self, num_rollouts: int, demo=False) -> np.ndarray:
         """
         Sample recent paths from demo or sample buffer
@@ -169,15 +197,6 @@ class GCL_Agent(BaseAgent, metaclass=ABCMeta):
         else:
             return self.sample_buffer.sample_recent_rollouts(num_rollouts)
 
-    def sample(self, batch_size: int, demo=False):
-        """
-        Sample recent transition steps of size batch_size
-        """
-        assert isinstance(batch_size, int) and batch_size >= 0
-        if demo:
-            return self.demo_buffer.sample_recent_data(batch_size, concat_rew=False)
-        else:
-            return self.sample_buffer.sample_recent_data(batch_size, concat_rew=False)
 
     def sample_background_rollouts(self, batch_size: Optional[int] = 1000,
                                    recent=False, all_rollouts=False) -> np.ndarray:
@@ -192,21 +211,45 @@ class GCL_Agent(BaseAgent, metaclass=ABCMeta):
             return self.background_buffer.sample_random_rollouts(batch_size)
 
     #####################################################
+    #####################################################
+
+    def sample(self, batch_size: int, demo=False):
+        """
+        Sample recent transition steps of size batch_size
+        """
+        assert isinstance(batch_size, int) and batch_size >= 0
+        if demo:
+            return self.demo_buffer.sample_recent_data(batch_size, concat_rew=False)
+        else:
+            return self.sample_buffer.sample_recent_data(batch_size, concat_rew=False)
+
+    #####################################################
     #                  HELPER FUNCTIONS                 #
     #####################################################
 
-    def _discounted_cumsum(self, rewards: List[float]) -> List[float]:
+    def _discounted_return(self, rewards: List[float]) -> List[float]:
         """
-        Helper function which
-        -takes a list of rewards {r_0, r_1, ..., r_t', ... r_T},
-        -and returns a list where the entry in each index t' is sum_{t'=t}^T gamma^(t'-t) * r_{t'}
+        Helper function
+        Input: list of rewards {r_0, r_1, ..., r_t', ... r_T} from a single
+        rollout of length T
+        Output: list where each index t contains sum_{t'=0}^T gamma^t' r_{t'}
         """
 
-        # HINT1: note that each entry of the output should now be unique,
-        # because the summation happens over [t, T] instead of [0, T]
-        list_of_discounted_cumsums = [0] * len(rewards)
-        s = 0
-        for t, r in reversed(list(enumerate(rewards))):
-            s += (self.gamma ** t) * r
-            list_of_discounted_cumsums[t] = s
-        return list_of_discounted_cumsums
+        discounted_return = reduce(
+            lambda ret, reward: ret * self.gamma + reward,
+            reversed(rewards),
+        )
+        return [discounted_return] * len(rewards)
+
+    def _discounted_cumsum(self, rewards: List[float]) -> List[float]:
+        """
+            Helper function which
+            - takes a list of rewards {r_0, r_1, ..., r_t', ... r_T},
+            - and returns a list where the entry in each index t' is
+              sum_{t'=t}^T gamma^(t'-t) * r_{t'}
+        """
+
+        return list(accumulate(
+            reversed(rewards),
+            lambda ret, reward: ret * self.gamma + reward,
+        ))[::-1]
