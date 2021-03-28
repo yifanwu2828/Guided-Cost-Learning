@@ -4,17 +4,12 @@ import functools
 from itertools import accumulate
 
 import numpy as np
-import torch
 
 from gcl.agents.mlp_policy import MLPPolicyPG
 from gcl.agents.base_agent import BaseAgent
 from gcl.scripts.replay_buffer import ReplayBuffer
 import gcl.scripts.utils as utils
 from gcl.scripts.utils import PathDict
-
-# set overflow warning to error instead
-np.seterr(all='raise')
-torch.autograd.set_detect_anomaly(True)
 
 
 class PGAgent(BaseAgent, metaclass=ABCMeta):
@@ -96,8 +91,7 @@ class PGAgent(BaseAgent, metaclass=ABCMeta):
         """
 
         # Estimate the advantage when nn_baseline is True,
-        # by querying the neural network that you're using to learn the
-        # baseline
+        # by querying the neural network that you're using to learn the baseline
         if self.nn_baseline:
             baselines_unnormalized = self.actor.run_baseline_prediction(obs)
 
