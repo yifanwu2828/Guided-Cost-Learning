@@ -43,7 +43,7 @@ class MLPPolicy(BasePolicy, nn.Module, metaclass=abc.ABCMeta):
         # Discrete action space
         if self.discrete:
             self.mean_net = None  # using in continuous action space
-            self.logstd = None    # using in continuous action space
+            self.logstd = None  # using in continuous action space
 
             self.logits_na = ptu.build_mlp(input_size=self.ob_dim,
                                            output_size=self.ac_dim,
@@ -148,7 +148,6 @@ class MLPPolicyPG(MLPPolicy):
         self.discrete = discrete
         # Init baseline_loss
         self.baseline_loss = nn.MSELoss()
-
 
     def update(self,
                observations: np.ndarray,

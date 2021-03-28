@@ -8,11 +8,12 @@ import numpy as np
 import torch
 from tqdm import tqdm
 
-import gcl.scripts.pytorch_util as ptu
-import gcl.scripts.utils as utils
-from gcl.scripts.utils import PathDict
+import pytorch_util as ptu
+import utils
+from utils import PathDict
+from logger import Logger
 from gcl.agents.base_policy import BasePolicy
-from gcl.scripts.logger import Logger
+
 
 # set overflow warning to error instead
 np.seterr(all='raise')
