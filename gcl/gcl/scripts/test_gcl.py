@@ -16,7 +16,7 @@ class IRL_Trainer(object):
 
     def __init__(self, params):
         #####################
-        ## SET AGENT PARAMS
+        # SET AGENT PARAMS
         #####################
 
         computation_graph_args = {
@@ -28,6 +28,9 @@ class IRL_Trainer(object):
 
         estimate_advantage_args = {
             'gamma': params['discount'],
+            'standardize_advantages': not (params['dont_standardize_advantages']),
+            'reward_to_go': params['reward_to_go'],
+            'nn_baseline': params['nn_baseline'],
         }
 
         train_args = {
@@ -41,7 +44,7 @@ class IRL_Trainer(object):
         self.params['agent_params'] = agent_params
 
         ################
-        ## IRL TRAINER
+        # IRL TRAINER
         ################
 
         self.gcl_trainer = GCL_Trainer(self.params)
@@ -82,12 +85,17 @@ if __name__ == '__main__':
     parser.add_argument('--expert_policy', '-epf', type=str, default='ppo_nav_env')
     parser.add_argument('--expert_data', '-ed', type=str, default='')
 
+    # PG setting
+    parser.add_argument('--reward_to_go', '-rtg', action='store_true', default=True)
+    parser.add_argument('--nn_baseline', action='store_true', default=True)
+    parser.add_argument('--dont_standardize_advantages', '-dsa', action='store_true', default=False)
+
     parser.add_argument(
         '--n_iter', '-n', type=int, default=10,
-        help='Number of total iterations')
+        help='Number of total iterations in outer training loop (Algorithm 1: Guided cost learning)')
     parser.add_argument(
-        '--demo_size', type=int, default=10,
-        help='Number of expert rollouts to add to replay buffer'
+        '--demo_size', type=int, default=50,
+        help='Number of expert rollouts to add to demo replay buffer'
     )
     parser.add_argument(
         '--sample_size', type=int, default=10,
@@ -95,23 +103,23 @@ if __name__ == '__main__':
     )
     parser.add_argument(
         '--num_reward_train_steps_per_iter', type=int, default=10,
-        help='Number of reward updates per iteration'
+        help='Number of reward updates per iteration in Algorithm 2: Nonlinear IOC with stochastic gradients'
     )
     parser.add_argument(
         '--train_demo_batch_size', type=int, default=10,
-        help='Number of expert rollouts to sample from replay buffer per reward update'
+        help='Number of expert rollouts (subset of D_demo) to sample from replay buffer per reward update'
     )
     parser.add_argument(
         '--train_sample_batch_size', type=int, default=10,
-        help='Number of policy rollouts to sample from replay buffer per reward update'
+        help='Number of policy rollouts (subset of D_samp) to sample from replay buffer per reward update'
     )
     parser.add_argument(
-        '--num_policy_train_steps_per_iter', type=int, default=10,
+        '--num_policy_train_steps_per_iter', type=int, default=1,
         help='Number of policy updates per iteration')
     parser.add_argument(
         '--train_batch_size', type=int, default=1000,
         help='Number of transition steps to sample from replay buffer per policy update'
-    )
+    )   # use at least 5000 for 100 policy update itr
     parser.add_argument(
         '--eval_batch_size', type=int, default=100,
         help='Number of transition steps to sample from current policy for evaluation'
@@ -127,17 +135,13 @@ if __name__ == '__main__':
     parser.add_argument('--no_gpu', '-ngpu', action='store_true')
     parser.add_argument('--which_gpu', '-gpu_id', default=0)
     parser.add_argument('--video_log_freq', type=int, default=-1)  # -1 not log video
-    parser.add_argument('--scalar_log_freq', type=int, default=-1)
-    parser.add_argument('--save_params', action='store_true')
+    parser.add_argument('--scalar_log_freq', type=int, default=-1000)
+    parser.add_argument('--save_params', action='store_true', default=False)
 
     args = parser.parse_args()
 
     # convert to dictionary
     params = vars(args)
-
-    # change path of pretrain model
-    path = os.getcwd()
-    # print (os.path.join(path,"tmp", "ppo_nav_env"))
 
     ##################################
     # CREATE DIRECTORY FOR LOGGING
@@ -158,34 +162,45 @@ if __name__ == '__main__':
     # RUN TRAINING
     ###################
     print("##### PARAM ########")
-    # params["expert_policy"] = os.path.join(path, "ppo_nav_env")
-    params["expert_policy"] = "ppo_nav_env"
+    # path of pretrain model
+    path = os.getcwd()
+    params["expert_policy"] = os.path.join(path, "ppo_nav_env")
 
-    # Number of iteration of training loop
-    # Number of current policy rollouts to add to replay buffer at each iteration
-    # Number of reward updates per iteration
-    # Number of policy updates per iteration
-    # Number of expert rollouts to sample from replay buffer per reward update  '''sample recent?'''
-    # Number of policy rollouts to sample from replay buffer per reward update
-    # Number of transition steps to sample from demo replay buffer at beginning
-    # Number of transition steps to sample from sample replay buffer per policy update PG
+
+    '''Outer Training Loop (Algorithm 1: Guided cost learning)'''
+    # Number of iteration of outer training loop (Algorithm 1)
     params['n_iter'] = 20
+    # Number of expert rollouts to add to demo replay buffer before outer loop
+    params['demo_size'] = 200
+    # number of current policy rollouts add to sample buffer per itr in outer training loop
+    params["sample_size"] = 100
 
-    params["num_reward_train_steps_per_iter"] = 50  # K_r
-    params["num_policy_train_steps_per_iter"] = 800  # K_p
+    ''' Train Reward (Algorithm 2) '''
+    # Number of reward updates per iteration in Algorithm 2
+    params["num_reward_train_steps_per_iter"] = 10  # K_r
+    # Number of expert rollouts to sample from replay buffer per reward update
+    params["train_demo_batch_size"] = 100
+    # Number of policy rollouts to sample from replay buffer per reward update '''sample recent?'''
+    params["train_sample_batch_size"] = 100
 
-    params['demo_size'] = 200                # number of rollouts add to demo buffer per itr in outer loop
-    params["sample_size"] = 100               # number of rollouts add to sample buffer per itr in outer loop
 
-    params["train_demo_batch_size"] = 100   # number of rollouts sample from demo buffer in train reward
-    params["train_sample_batch_size"] = 100  # number of rollouts sample from sample buffer in train reward
+    ''' Train Policy (Policy Gradient) '''
+    # Number of policy updates per iteration
+    params["num_policy_train_steps_per_iter"] = 100  # K_p
+    # Number of transition steps to sample from sample replay buffer per policy update
+    params["train_batch_size"] = 5000
 
+
+    # size of subset should be less than size of set
     assert params["sample_size"] >= params["train_sample_batch_size"]
     assert params['demo_size'] >= params["train_demo_batch_size"]
-    params["train_batch_size"] = 100*20
+
 
     params['discount'] = 0.99
     params["learning_rate"] = 5e-3
+    params['reward_to_go'] = True
+    params['nn_baseline'] = True
+    params['dont_standardize_advantages'] = False
     print(params)
 
 
@@ -202,17 +217,14 @@ if __name__ == '__main__':
     plt.figure()
     plt.plot(res)
     plt.title("train_loss without outlier")
-    # plt.ylim(-5000,500)
     plt.plot(list(range(len(train_log_lst))), [train_log_lst[0]] * len(train_log_lst))
     plt.show()
 
     plt.figure()
     plt.plot(train_log_lst)
     plt.title("train_loss")
-    # plt.ylim(-5000,500)
     plt.plot(list(range(len(train_log_lst))), [train_log_lst[0]] * len(train_log_lst))
     plt.show()
-
 
     plt.figure()
     plt.plot(policy_log_lst)
