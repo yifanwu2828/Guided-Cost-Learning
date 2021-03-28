@@ -41,7 +41,6 @@ if __name__ == '__main__':
     # load model
     start_load = tic("############ Load Model ############")
     fname1 = "test_reward2.pth"
-    # fname1 = "mlp_reward_nitr30_demo100.pth"
     reward_model = torch.load(fname1)
     reward_model.eval()
 
@@ -60,7 +59,7 @@ if __name__ == '__main__':
     # Init Param
     reward_log_dict = {"act": [], "obs": [], "mlp_reward": [], "true_reward": [], }
     #######################################################################################
-    '''TEST LEARNING REWARD'''
+    ''' TEST LEARNING REWARD '''
     if VISUAL:
         obs = env.reset()
         n_step = range(500)
@@ -115,9 +114,9 @@ if __name__ == '__main__':
     #######################################################################################
     #######################################################################################
     # Init Param
-    reward_log_dict2 = {"act": [], "obs": [], "mlp_reward": [], "true_reward": [], }
+    reward_log_dict2 = {"act": [], "obs": [], "mlp_reward": [], "true_reward": []}
     #######################################################################################
-    '''TEST LEARNING REWARD'''
+    ''' TEST LEARNING REWARD'''
     if VISUAL:
         obs = env.reset()
         n_step = range(500)
