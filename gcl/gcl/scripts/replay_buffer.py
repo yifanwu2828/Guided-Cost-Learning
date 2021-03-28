@@ -1,7 +1,7 @@
 import numpy as np
 from typing import List, Tuple, Union
-import utils
-from utils import PathDict
+import gcl.scripts.utils as utils
+from gcl.scripts.utils import PathDict
 
 
 class ReplayBuffer(object):
