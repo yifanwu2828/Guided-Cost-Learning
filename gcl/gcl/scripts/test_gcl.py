@@ -4,7 +4,6 @@ import time
 
 import numpy as np
 import torch
-from torch import multiprocessing
 import matplotlib.pyplot as plt
 import gym
 import gym_nav
@@ -74,7 +73,6 @@ if __name__ == '__main__':
     # set overflow warning to error instead
     np.seterr(all='raise')
     torch.autograd.set_detect_anomaly(True)
-    multiprocessing.set_start_method('fork')
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--env_name', '-env', type=str, default='NavEnv-v0')
@@ -142,7 +140,7 @@ if __name__ == '__main__':
     # print (os.path.join(path,"tmp", "ppo_nav_env"))
 
     ##################################
-    ### CREATE DIRECTORY FOR LOGGING
+    # CREATE DIRECTORY FOR LOGGING
     ##################################
 
     data_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../data')
@@ -157,7 +155,7 @@ if __name__ == '__main__':
         os.makedirs(logdir)
 
     ###################
-    ### RUN TRAINING
+    # RUN TRAINING
     ###################
     print("##### PARAM ########")
     # params["expert_policy"] = os.path.join(path, "ppo_nav_env")
@@ -197,7 +195,7 @@ if __name__ == '__main__':
     toc(start_train)
 
     ###################
-    ### Test
+    # Test
     ###################
 
     res = removeOutliers(train_log_lst)
@@ -221,7 +219,7 @@ if __name__ == '__main__':
     plt.title("policy_loss")
     plt.show()
 
-    # saving mlp Reward
+    # saving mlp Reward and Policy
     SAVE = True
     if SAVE:
         fname1 = "test_reward2.pth"
