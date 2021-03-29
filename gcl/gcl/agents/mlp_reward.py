@@ -92,8 +92,11 @@ class MLPReward(nn.Module):
         # print(reward)
         return reward
 
+    #####################################################
+    #####################################################
     def update(self, demo_obs: List[np.ndarray], demo_acs: List[np.ndarray],
-               sample_obs: List[np.ndarray], sample_acs: List[np.ndarray], sample_log_probs: List[np.ndarray]) -> dict:
+               sample_obs: List[np.ndarray], sample_acs: List[np.ndarray],
+               sample_log_probs: List[np.ndarray]) -> dict:
         """
         Computes the loss and updates the reward parameters
         Objective is to maximize sum of demo rewards and minimize sum of sample rewards
@@ -105,8 +108,8 @@ class MLPReward(nn.Module):
           = 1/N sum_{i=1}^N return(tau_i) - log (sum_j exp(return(tau_j)) * w(tau_j) / sum_j w(tau_j))
         where w(tau) = p(tau) / q(tau) = 1 / prod_t pi(a_t|s_t) 
         """
-        assert len(demo_obs) == len(demo_acs)
-        assert len(sample_obs) == len(sample_acs) == len(sample_log_probs)
+        assert len(demo_obs) == len(demo_acs), "Length of Demo trajs do not match"
+        assert len(sample_obs) == len(sample_acs) == len(sample_log_probs), "Length of Sample trajs do not match"
         # Demo Return
         demo_rollouts_return = []
         for demo_ob, demo_ac in zip(demo_obs, demo_acs):
@@ -130,18 +133,18 @@ class MLPReward(nn.Module):
 
         sample_return = torch.stack(sample_rollouts_return)
         sum_log_probs = torch.stack(sample_rollouts_logprob)
-        # print(sum_log_probs.size())
+
         '''
         wj  = exp(sum(r)) / prod(exp(log_prob))
             = exp(sum(r)) / exp(sum(log_prob))
             = exp(sum(r) - sum(log_prob))   Let sum(r) - sum(log_prob) be x = [x1, ...xj]
-        -> exp
+        ->
         importance weights = wj/sum(wj)
         '''
         x = sample_return - sum_log_probs
         weights = torch.exp(x - torch.logsumexp(x, -1))
+        # weights should sum to 1
         assert abs(weights.sum(-1).item() - 1) <= 1e-2
-        # print(weights)
 
         demo_loss = torch.mean(demo_return)
         sample_loss = torch.sum(weights * sample_return)
