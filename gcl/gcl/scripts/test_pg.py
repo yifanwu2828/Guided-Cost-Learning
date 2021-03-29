@@ -132,8 +132,8 @@ if __name__ == '__main__':
 
     # Setting param
 
-    params['n_iter'] = 100
-    params["batch_size"] = 5000
+    params['n_iter'] = 200
+    params["batch_size"] = 10000
     params["train_batch_size"] = params["batch_size"]
     params['num_policy_train_steps_per_iter'] = 1    # >1 do not work
 
