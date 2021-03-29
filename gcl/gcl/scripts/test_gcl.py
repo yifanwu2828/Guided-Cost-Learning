@@ -131,6 +131,7 @@ if __name__ == '__main__':
     parser.add_argument('--output_size', type=int, default=20)
     parser.add_argument('--learning_rate', '-lr', type=float, default=5e-3)
 
+    parser.add_argument('--ep_len', type=int)
     parser.add_argument('--seed', type=int, default=1)
     parser.add_argument('--no_gpu', '-ngpu', action='store_true')
     parser.add_argument('--which_gpu', '-gpu_id', default=0)
@@ -165,11 +166,11 @@ if __name__ == '__main__':
     # path of pretrain model
     path = os.getcwd()
     params["expert_policy"] = os.path.join(path, "ppo_nav_env")
-
+    params["ep_len"] = 100
 
     '''Outer Training Loop (Algorithm 1: Guided cost learning)'''
     # Number of iteration of outer training loop (Algorithm 1)
-    params['n_iter'] = 20
+    params['n_iter'] = 100
     # Number of expert rollouts to add to demo replay buffer before outer loop
     params['demo_size'] = 200
     # number of current policy rollouts add to sample buffer per itr in outer training loop
@@ -186,15 +187,15 @@ if __name__ == '__main__':
 
     ''' Train Policy (Policy Gradient) '''
     # Number of policy updates per iteration
-    params["num_policy_train_steps_per_iter"] = 100  # K_p
+    params["num_policy_train_steps_per_iter"] = 1  # K_p
     # Number of transition steps to sample from sample replay buffer per policy update
-    params["train_batch_size"] = 5000
+    params["train_batch_size"] = 10000
 
 
     # size of subset should be less than size of set
     assert params["sample_size"] >= params["train_sample_batch_size"]
     assert params['demo_size'] >= params["train_demo_batch_size"]
-
+    assert params["train_batch_size"] >= params["train_sample_batch_size"] * params["ep_len"]
 
     params['discount'] = 0.99
     params["learning_rate"] = 5e-3
