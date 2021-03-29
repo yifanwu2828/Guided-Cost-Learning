@@ -1,20 +1,15 @@
 from abc import ABCMeta
-from typing import Optional, List
+from typing import Optional, List, Union
 from functools import reduce
 from itertools import accumulate
 
 import numpy as np
-import torch
 
 from .mlp_policy import MLPPolicyPG
 from .base_agent import BaseAgent
 from .mlp_reward import MLPReward
 from gcl.scripts.replay_buffer import ReplayBuffer
 from gcl.scripts.utils import PathDict, normalize
-
-# set overflow warning to error instead
-np.seterr(all='raise')
-torch.autograd.set_detect_anomaly(True)
 
 
 class GCL_Agent(BaseAgent, metaclass=ABCMeta):
@@ -84,7 +79,10 @@ class GCL_Agent(BaseAgent, metaclass=ABCMeta):
 
     ##################################################################################################
 
-    def train_policy(self, observations, actions, rewards_list,
+    def train_policy(self,
+                     observations: np.ndarray,
+                     actions: np.ndarray,
+                     rewards_list: Union[np.ndarray, List],
                      next_observations, terminals) -> dict:
         """
         Training a PG agent refers to updating its actor using the given observations/actions
@@ -156,7 +154,7 @@ class GCL_Agent(BaseAgent, metaclass=ABCMeta):
     #####################################################
     #####################################################
 
-    def add_to_buffer(self, paths: List[PathDict], demo=False, background=False):
+    def add_to_buffer(self, paths: List[PathDict], demo=False, background=False) -> None:
         """
         Add paths to demo or sample buffer
         """
