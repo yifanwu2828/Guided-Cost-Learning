@@ -75,7 +75,7 @@ def removeOutliers(x, outlierConstant=1.5) -> list:
 if __name__ == '__main__':
     # set overflow warning to error instead
     np.seterr(all='raise')
-    torch.autograd.set_detect_anomaly(True)
+    torch.backends.cudnn.benchmark = True
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--env_name', '-env', type=str, default='NavEnv-v0')
@@ -136,7 +136,7 @@ if __name__ == '__main__':
     parser.add_argument('--no_gpu', '-ngpu', action='store_true')
     parser.add_argument('--which_gpu', '-gpu_id', default=0)
     parser.add_argument('--video_log_freq', type=int, default=-1)  # -1 not log video
-    parser.add_argument('--scalar_log_freq', type=int, default=-1000)
+    parser.add_argument('--scalar_log_freq', type=int, default=1)
     parser.add_argument('--save_params', action='store_true', default=False)
 
     args = parser.parse_args()
@@ -171,7 +171,7 @@ if __name__ == '__main__':
 
     '''Outer Training Loop (Algorithm 1: Guided cost learning)'''
     # Number of iteration of outer training loop (Algorithm 1)
-    params['n_iter'] = 300
+    params['n_iter'] = 400  # sweet spot 400
     # Number of expert rollouts to add to demo replay buffer before outer loop
     params['demo_size'] = 200
     # number of current policy rollouts add to sample buffer per itr in outer training loop
