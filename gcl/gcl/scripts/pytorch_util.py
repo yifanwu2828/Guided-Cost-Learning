@@ -135,8 +135,8 @@ def init_gpu(use_gpu=True, gpu_id=0) -> None:
         print("GPU not detected. Defaulting to CPU.")
 
 
-def set_device(gpu_id) -> None:
-    torch.cuda.set_device(gpu_id)
+def set_device(device: Union[torch.device, int]) -> None:
+    torch.cuda.set_device(device)
 
 
 def from_numpy(*args, **kwargs):

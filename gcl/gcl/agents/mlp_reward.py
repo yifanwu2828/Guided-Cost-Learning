@@ -7,9 +7,6 @@ from torch import optim
 
 from gcl.scripts import pytorch_util as ptu
 
-# set overflow warning to error instead
-torch.autograd.set_detect_anomaly(True)
-
 
 class MLPReward(nn.Module):
     """
@@ -19,20 +16,18 @@ class MLPReward(nn.Module):
     def __init__(self, ac_dim, ob_dim, n_layers, size, output_size, learning_rate):
         super().__init__()
 
-        self.ac_dim = ac_dim
-        self.ob_dim = ob_dim
-        self.n_layers = n_layers
-        self.size = size
-        self.output_size = output_size
-        self.learning_rate = learning_rate
+        self.ac_dim: int = ac_dim
+        self.ob_dim: int = ob_dim
+        self.n_layers: int = n_layers
+        self.size: int = size
+        self.output_size: int = output_size
+        self.learning_rate: float = learning_rate
 
-        self.mlp = ptu.build_mlp(
+        self.mlp: nn.Module = ptu.build_mlp(
             input_size=self.ob_dim,
             output_size=self.output_size,
             n_layers=self.n_layers,
             size=self.size,
-            # n_layers=5,
-            # size=40,
             activation='identity',
             output_activation='relu'
         )
@@ -81,7 +76,7 @@ class MLPReward(nn.Module):
     def forward(self, observation: torch.FloatTensor, action: torch.FloatTensor) -> torch.FloatTensor:
         """
         Returns the reward for the current state and action
-        c(x, u) = |Ay + b|^2 + w |u|^2 where y = mlp(x)
+        Cost function: c(x, u) = |Ay + b|^2 + w |u|^2 where y = mlp(x)
         """
         y = self.mlp(observation)
         z = torch.matmul(y, self.A) + self.b
@@ -106,15 +101,17 @@ class MLPReward(nn.Module):
           = 1/N sum_{i=1}^N return(tau_i) - log E_{tau ~ p(tau)} [exp(return(tau))]
           = 1/N sum_{i=1}^N return(tau_i) - log E_{tau ~ q(tau)} [p(tau) / q(tau) * exp(return(tau))]
           = 1/N sum_{i=1}^N return(tau_i) - log (sum_j exp(return(tau_j)) * w(tau_j) / sum_j w(tau_j))
-        where w(tau) = p(tau) / q(tau) = 1 / prod_t pi(a_t|s_t) 
+        where w(tau) = p(tau) / q(tau) = 1 / prod_t pi(a_t|s_t)
         """
         assert len(demo_obs) == len(demo_acs), "Length of Demo trajs do not match"
         assert len(sample_obs) == len(sample_acs) == len(sample_log_probs), "Length of Sample trajs do not match"
+
         # Demo Return
         demo_rollouts_return = []
         for demo_ob, demo_ac in zip(demo_obs, demo_acs):
             demo_ob, demo_ac = np.array(demo_ob, dtype=np.float32), np.array(demo_ac, dtype=np.float32)
             demo_rew = self(ptu.from_numpy(demo_ob), ptu.from_numpy(demo_ac))
+            # Append total reward along that trajectory
             demo_rollouts_return.append(demo_rew.sum(-1))
         demo_return = torch.stack(demo_rollouts_return)
 
@@ -122,10 +119,11 @@ class MLPReward(nn.Module):
         sample_rollouts_return = []
         sample_rollouts_logprob = []
         for sample_ob, sample_ac, sample_log_prob in zip(sample_obs, sample_acs, sample_log_probs):
+            # Sample returns
             sample_ob, sample_ac = np.array(sample_ob, dtype=np.float32), np.array(sample_ac, dtype=np.float32)
             sample_rew = self(ptu.from_numpy(sample_ob), ptu.from_numpy(sample_ac))
             sample_rollouts_return.append(sample_rew.sum(-1))
-
+            # Sample log_probs
             assert isinstance(sample_log_prob, np.ndarray)
             sample_log_prob = torch.squeeze(ptu.from_numpy(sample_log_prob), dim=-1)
             sum_log_prob = sample_log_prob.sum(-1)
@@ -135,6 +133,7 @@ class MLPReward(nn.Module):
         sum_log_probs = torch.stack(sample_rollouts_logprob)
 
         '''
+        Directly compute the importance ratio 
         wj  = exp(sum(r)) / prod(exp(log_prob))
             = exp(sum(r)) / exp(sum(log_prob))
             = exp(sum(r) - sum(log_prob))   Let sum(r) - sum(log_prob) be x = [x1, ...xj]
@@ -150,18 +149,9 @@ class MLPReward(nn.Module):
         sample_loss = torch.sum(weights * sample_return)
         loss = -demo_loss + sample_loss
 
-        # # using 1/N sum_{i=1}^N return(tau_i) - log 1/M (sum_j exp(return(tau_j)) / prod_t pi(a_t|s_t) )
-        # w = sample_return - torch.sum(log_probs, dim=1)
-        # w_max = torch.max(w)
-        #
-        # # TODO: Use importance sampling to estimate sample return
-        # # trick to avoid overflow: log(exp(x1) + exp(x2)) = x + log(exp(x1-x) + exp(x2-x)) where x = max(x1, x2)
-        # loss = -torch.mean(demo_return) + torch.log(torch.sum(torch.exp(w - w_max))) + w_max
-
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
-
 
         train_reward_log = {"Training reward loss": ptu.to_numpy(loss)}
         return train_reward_log

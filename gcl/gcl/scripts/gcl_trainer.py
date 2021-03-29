@@ -1,5 +1,6 @@
 import pickle
 import time
+import datetime
 from functools import lru_cache
 from collections import OrderedDict
 from typing import List, Optional, Tuple, Dict, Sequence, Any
@@ -303,7 +304,7 @@ class GCL_Trainer(object):
         return paths, envsteps_this_batch, train_video_paths
 
     ############################################################################################
-    def train_reward(self):
+    def train_reward(self) -> List[Dict]:
         """
         Algorithm 2: Nonlinear IOC with stochastic gradients 
         """
@@ -401,7 +402,6 @@ class GCL_Trainer(object):
 
         # save eval metrics
         # TODO: should parse the reward training loss and policy training loss
-        # TODO: should add a visualization tool to check the trained reward function
         if self.log_metrics:
             # returns, for logging
             train_returns = [path["reward"].sum() for path in paths]
@@ -436,7 +436,7 @@ class GCL_Trainer(object):
             # perform the logging
             print("\n---------------------------------------------------")
             for key, value in logs.items():
-                print(f'|\t{key:<20} : {value:>10.3f}')
+                print(f'|\t{key:<20} | {value:>10.3f}')
                 self.logger.log_scalar(value, key, itr)
             print("---------------------------------------------------")
 
@@ -449,13 +449,13 @@ class GCL_Trainer(object):
         if demo:
             demo_paths_len = len(self.agent.demo_buffer)
             demo_data_len = self.agent.demo_buffer.num_data
-            print(f"Demo_buffer_size: {demo_paths_len}, {demo_data_len}"
-                  f" -> Average Demo ep_len: {demo_data_len / demo_paths_len}")
+            print(f"{'Demo_buffer_size:': <20} {demo_paths_len}, {demo_data_len}"
+                  f"{'-> Average Demo ep_len:': ^25} {demo_data_len / demo_paths_len:>10.3f}")
         if samp:
             samp_paths_len = len(self.agent.sample_buffer)
             samp_data_len = self.agent.sample_buffer.num_data
-            print(f"Sample_buffer_size: {samp_paths_len>20}, {samp_data_len}"
-                  f" -> Average Samp ep_len: {samp_data_len / samp_paths_len:.3f}")
+            print(f"{'Sample_buffer_size:': <20} {samp_paths_len}, {samp_data_len}"
+                  f" {'-> Average Samp ep_len:': ^25} {samp_data_len / samp_paths_len:>10.3f}")
         if background:
             back_paths_len = len(self.agent.background_buffer)
             back_data_len = self.agent.background_buffer.num_data
