@@ -40,12 +40,11 @@ if __name__ == '__main__':
     #######################################################################################
     # load model
     start_load = tic("############ Load Model ############")
-    fname1 = "test_reward2.pth"
+    fname1 = "test_gcl_reward.pth"
     reward_model = torch.load(fname1)
     reward_model.eval()
 
-    # fname2 = "test_policy2.pth"
-    fname2 = "test_pg.pth"
+    fname2 = "test_gcl_policy.pth"
     policy_model = torch.load(fname2)
     policy_model.eval()
 
@@ -218,7 +217,7 @@ if __name__ == '__main__':
         eval_env = gym.make("NavEnv-v0")
         all_episode_rewards = []
         all_episode_len = []
-        num_episodes = 10
+        num_episodes = 50
         for _ in tqdm(range(num_episodes)):
             episode_rewards = []
             episode_len = 0
