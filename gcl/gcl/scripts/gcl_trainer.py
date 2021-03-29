@@ -46,8 +46,9 @@ class GCL_Trainer(object):
         torch.cuda.manual_seed(seed)
 
         # init gpu
+        self.params['use_gpu'] = not self.params['no_gpu']
         ptu.init_gpu(
-            use_gpu=not self.params['no_gpu'],
+            use_gpu=self.params['use_gpu'],
             gpu_id=self.params['which_gpu']
         )
 
@@ -105,10 +106,18 @@ class GCL_Trainer(object):
         agent_class = self.params['agent_class']
         self.agent = agent_class(self.env, self.params['agent_params'])
 
+    ##################################
+
+    def __repr__(self) -> str:
+        return f"GCL_Trainer"
+
+    ##################################
+
     ############################################################################################
     def run_training_loop(self, n_iter: int,
                           collect_policy, eval_policy,
-                          expert_data=None, expert_policy=None) -> Tuple[Any, Any]:
+                          expert_data=None, expert_policy=None
+                          ) -> Tuple[Any, Any]:
         """
         Perform Algorithm 1 Guided cost learning
         :param n_iter: number of iterations
@@ -131,8 +140,8 @@ class GCL_Trainer(object):
                                                           ntrajs=self.params['demo_size'],
                                                           render=False, verbose=True)
         self.agent.add_to_buffer(demo_paths, demo=True)
-        print(f'\nNum of Demo rollouts collected:{self.agent.demo_buffer._num_paths}')
-        print(f'Num of Demo transition steps collected:{self.agent.demo_buffer._num_data}')
+        print(f'\nNum of Demo rollouts collected:{self.agent.demo_buffer.num_paths}')
+        print(f'Num of Demo transition steps collected:{self.agent.demo_buffer.num_data}')
         utils.toc(self.start_time, "Finish Loading Expert Demonstrations")
 
         #####################################################################
@@ -205,7 +214,7 @@ class GCL_Trainer(object):
                                   expert_data: Optional[str] = None, expert_policy: Optional[str] = None,
                                   ntrajs: int = 100, demo_batch_size: int = 1000,
                                   render=False, verbose=False
-                                  ) -> Tuple[List[PathDict], int, Any]:
+                                  ) -> Tuple[List[PathDict], int, Optional[List[PathDict]]]:
         """
         :param: expert_data:  relative path to saved
         :param: expert_policy:  relative path to saved expert policy
@@ -252,9 +261,12 @@ class GCL_Trainer(object):
             raise ValueError('Please provide either expert demonstrations or expert policy')
         return demo_paths, envsteps_this_batch, train_video_paths
 
-        ############################################################################################
+    ############################################################################################
 
-    def collect_training_trajectories(self, collect_policy: BasePolicy, batch_size: int):
+    def collect_training_trajectories(self,
+                                      collect_policy: BasePolicy,
+                                      batch_size: int
+                                      ) -> Tuple[List[PathDict], int, Optional[List[PathDict]]]:
         """
         :param collect_policy:  the current policy which we use to collect data
         :param batch_size:  the number of transition steps or trajectories to collect
@@ -263,6 +275,10 @@ class GCL_Trainer(object):
             envsteps_this_batch: the sum over the numbers of environment steps in paths
             train_video_paths: paths which also contain videos for visualization purposes
         """
+        # Init var
+        train_video_paths = None
+        paths: List[PathDict]
+
         print("\nCollecting sample trajectories to be used for training...")
         envsteps_this_batch = 0
         paths: List[PathDict] = utils.sample_n_trajectories(
@@ -275,16 +291,15 @@ class GCL_Trainer(object):
             expert=False
         )
 
-        train_video_paths = None
-        if self.log_video:
-            print('\nCollecting train rollouts to be used for saving videos...')
-            # TODO look in utils and implement sample_n_trajectories -- implemented
-            pass
-
-        # TODO: add logging
-        if self.log_metrics:
-            # TODO:# what should be log in this function
-            pass
+        # if self.log_video:
+        #     print('\nCollecting train rollouts to be used for saving videos...')
+        #     # TODO look in utils and implement sample_n_trajectories -- implemented
+        #     pass
+        #
+        # # TODO: add logging
+        # if self.log_metrics:
+        #     # TODO:# what should be log in this function
+        #     pass
 
         return paths, envsteps_this_batch, train_video_paths
 
@@ -336,9 +351,7 @@ class GCL_Trainer(object):
         """
         print('\nTraining agent using sampled data from replay buffer...')
         train_policy_logs = []
-        # K_train_policy_loop = tqdm(range(self.params['num_policy_train_steps_per_iter']),
-        #                            desc="policy_update",
-        #                            leave=False)
+
         K_train_policy_loop = range(self.params['num_policy_train_steps_per_iter'])
         for k in K_train_policy_loop:
             ob_batch, ac_batch, re_batch, next_ob_batch, terminal_batch = self.agent.sample(
@@ -349,44 +362,45 @@ class GCL_Trainer(object):
                                                   next_ob_batch, terminal_batch)
             train_policy_logs.append(policy_loss)
 
-            # K_train_policy_loop.set_postfix(K_ply=k,
-            #                                 policy_loss=policy_loss["Training Loss"],
-            #                                 )
         return train_policy_logs
 
     ############################################################################################
+
     def perform_logging(self, itr: int, paths: List[PathDict],
-                        eval_policy, train_video_paths: List[PathDict],
+                        eval_policy: BasePolicy,
+                        train_video_paths: List[PathDict],
                         reward_logs: list, policy_logs: list
                         ) -> None:
-
+        """Log metrics and Record Video"""
         last_log = policy_logs[-1]
 
         #######################
 
         # collect eval trajectories, for logging
         print("\nCollecting data for eval...")
-        eval_paths, _ = utils.sample_trajectories(
-            self.env,
-            eval_policy,
-            agent=self.agent,
-            min_timesteps_per_batch=self.params['eval_batch_size'],
-            max_path_length=self.params['ep_len'],
-            render=True
-        )
+        with torch.no_grad():
+            eval_returns = utils.sample_trajectories(self.env,
+                                                     eval_policy, self.agent,
+                                                     min_timesteps_per_batch=self.params['eval_batch_size'],
+                                                     max_path_length=self.params['ep_len']
+                                                     )
+        eval_paths, eval_envsteps_this_batch = eval_returns
 
         # save eval rollouts as videos in tensorboard event file
         if self.log_video and train_video_paths is not None:
-            # TODO: change to use sample_n_trajectories
-            # eval_video_paths, _ = utils.sample_trajectories(
-            # self.env, eval_policy, self.agent, MAX_NVIDEO, render=True)
-            #
-            # # save train/eval videos
-            # print('\nSaving train and eval rollouts as videos...')
-            # self.logger.log_paths_as_videos(train_video_paths, itr, fps=self.fps, max_videos_to_save=MAX_NVIDEO,
-            #                                 video_title='train_rollouts')
-            # self.logger.log_paths_as_videos(eval_video_paths, itr, fps=self.fps, max_videos_to_save=MAX_NVIDEO,
-            #                                 video_title='eval_rollouts')
+            print('\nCollecting video rollouts eval')
+            with torch.no_grad():
+                eval_video_paths = utils.sample_n_trajectories(self.env, eval_policy, self.agent,
+                                                               ntrajs=MAX_NVIDEO,
+                                                               max_path_length=MAX_VIDEO_LEN,
+                                                               render=True, expert=False
+                                                               )
+            # save train/eval videos
+            print('\nSaving train rollouts as videos...')
+            self.logger.log_paths_as_videos(train_video_paths, itr, fps=self.fps, max_videos_to_save=MAX_NVIDEO,
+                                            video_title='train_rollouts')
+            self.logger.log_paths_as_videos(eval_video_paths, itr, fps=self.fps, max_videos_to_save=MAX_NVIDEO,
+                                            video_title='eval_rollouts')
             pass
         #######################
 
@@ -425,10 +439,11 @@ class GCL_Trainer(object):
             logs["Initial_DataCollection_AverageReturn"] = self.initial_return
 
             # perform the logging
+            print("---------------------------------------------------")
             for key, value in logs.items():
-                print('{} : {}'.format(key, value))
+                print(f'|\t{key} : {value:.3f}')
                 self.logger.log_scalar(value, key, itr)
-            print('Done logging...\n\n')
+            print("---------------------------------------------------")
 
             self.logger.flush()
 
@@ -448,5 +463,5 @@ class GCL_Trainer(object):
             back_paths_len = len(self.agent.background_buffer)
             back_data_len = self.agent.background_buffer.num_data
         print(f"Back_buffer_size: {len(self.agent.background_buffer)}, {self.agent.background_buffer.num_data}"
-              f" Average ep_len: {back_data_len / back_paths_len :.3f} ")
+              f"\tAverage ep_len: {back_data_len / back_paths_len :.3f} ")
         print("##########################################################################")
