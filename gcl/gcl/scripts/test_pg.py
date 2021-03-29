@@ -14,7 +14,7 @@ from gcl.scripts.utils import tic, toc
 
 class PG_Trainer(object):
 
-    def __init__(self, params):
+    def __init__(self, params: dict):
         #####################
         # SET AGENT PARAMS
         #####################
@@ -135,6 +135,7 @@ if __name__ == '__main__':
     params['n_iter'] = 100
     params["batch_size"] = 5000
     params["train_batch_size"] = params["batch_size"]
+    params['num_policy_train_steps_per_iter'] = 1    # >1 do not work
 
     params['discount'] = 0.99
     params["learning_rate"] = 5e-3
