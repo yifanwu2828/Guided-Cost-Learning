@@ -14,6 +14,8 @@ from gcl.scripts.utils import PathDict
 
 class PGAgent(BaseAgent, metaclass=ABCMeta):
     gamma: float
+    standardize_advantages: bool
+    nn_baseline: bool
     reward_to_go: bool
 
     def __init__(self, env, agent_params: dict):
@@ -43,7 +45,12 @@ class PGAgent(BaseAgent, metaclass=ABCMeta):
         self.demo_buffer = ReplayBuffer(1000000)
         self.sample_buffer = ReplayBuffer(1000000)
 
-    def train_policy(self, observations: np.ndarray, actions: np.ndarray, rewards_list: Union[np.ndarray, List],
+    ##################################################################################################
+
+    def train_policy(self,
+                     observations: np.ndarray,
+                     actions: np.ndarray,
+                     rewards_list: Union[np.ndarray, List],
                      next_observations, terminals) -> dict:
         """
         Training a PG agent refers to updating its actor using the given
@@ -119,7 +126,7 @@ class PGAgent(BaseAgent, metaclass=ABCMeta):
     #####################################################
     #####################################################
 
-    def add_to_replay_buffer(self, paths: List[PathDict], demo=False):
+    def add_to_replay_buffer(self, paths: List[PathDict], demo=False) -> None:
         """
         Add paths to demo or sample buffer
         """
