@@ -168,9 +168,10 @@ if __name__ == '__main__':
     params["expert_policy"] = os.path.join(path, "ppo_nav_env")
     params["ep_len"] = 100
 
+
     '''Outer Training Loop (Algorithm 1: Guided cost learning)'''
     # Number of iteration of outer training loop (Algorithm 1)
-    params['n_iter'] = 100
+    params['n_iter'] = 300
     # Number of expert rollouts to add to demo replay buffer before outer loop
     params['demo_size'] = 200
     # number of current policy rollouts add to sample buffer per itr in outer training loop
@@ -190,6 +191,7 @@ if __name__ == '__main__':
     params["num_policy_train_steps_per_iter"] = 1  # K_p
     # Number of transition steps to sample from sample replay buffer per policy update
     params["train_batch_size"] = 10000
+
 
 
     # size of subset should be less than size of set
@@ -235,10 +237,10 @@ if __name__ == '__main__':
     # saving mlp Reward and Policy
     SAVE = True
     if SAVE:
-        fname1 = "test_reward2.pth"
+        fname1 = "test_gcl_reward.pth"
         reward_model = trainer.gcl_trainer.agent.reward
         torch.save(reward_model, fname1)
 
-        fname2 = "test_policy2.pth"
+        fname2 = "test_gcl_policy.pth"
         policy_model = trainer.gcl_trainer.agent.actor
         torch.save(policy_model, fname2)
