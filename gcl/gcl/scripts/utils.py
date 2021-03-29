@@ -78,95 +78,18 @@ def evaluate_model(eval_env_id, model, num_episodes=1000, render=False):
 
 ########################################################################################
 ########################################################################################
-# This version of function is used for PG test
-def sample_trajectory(env, policy, agent: BaseAgent,
-                      max_path_length, render=False, render_mode=('rgb_array'), expert=None):
-    # initialize env for the beginning of a new rollout
-    # HINT: should be the output of resetting the env
-    ob = env.reset()
-
-    # init vars
-    obs, acs, log_probs, rewards, next_obs, terminals, image_obs = [], [], [], [], [], [], []
-    steps = 0
-    while True:
-
-        # render image of the simulated env
-        if render:
-            if 'rgb_array' in render_mode:
-                if hasattr(env, 'sim'):
-                    image_obs.append(env.sim.render(camera_name='track', height=500, width=500)[::-1])
-                else:
-                    image_obs.append(env.render(mode=render_mode))
-            if 'human' in render_mode:
-                env.render(mode=render_mode)
-                time.sleep(env.model.opt.timestep)
-
-        # use the most recent ob to decide what to do
-        obs.append(ob)
-        # HINT: query the policy's get_action function
-        ac, log_prob = policy.get_action(ob)
-        ac = ac[0]
-        acs.append(ac)
-        log_probs.append(log_prob)
-        # take that action and record results
-        ob, rew, done, _ = env.step(ac)
-
-        # record result of taking that action
-        steps += 1
-        next_obs.append(ob)
-        rewards.append(rew)
-
-        # HINT: rollout can end due to done, or due to max_path_length
-        # HINT: this is either 0 or 1
-
-        rollout_done = 0
-        if done or steps >= max_path_length:
-            rollout_done = 1
-        terminals.append(rollout_done)
-
-        if rollout_done:
-            break
-
-    return Path(obs, image_obs, acs, log_probs, rewards, next_obs, terminals)
-
-
-########################################################################################
-########################################################################################
-# def sample_trajectory(env,
-#                       policy,
-#                       agent: BaseAgent,
-#                       max_path_length: int,
-#                       render=False, render_mode: str = 'rgb_array',
-#                       expert=False
-#                       ) -> PathDict:
-#     """
-#     Sample a single trajectory and returns infos
-#     :param env: simulation environment
-#     :param policy: current policy or expert policy
-#     :param agent:
-#     :param max_path_length: max_path_length should equal to env.max_steps
-#     :param render: visualize trajectory if render is True
-#     :param render_mode: 'human' or 'rgb_array'
-#     :param expert: sample from expert policy if True
-#     :return: PathDict
-#     """
-#     assert isinstance(max_path_length, int)
-#     assert max_path_length >= 0
+# # This version of function is used for PG test
+# def sample_trajectory(env, policy, agent: BaseAgent,
+#                       max_path_length, render=False, render_mode=('rgb_array'), expert=None):
 #     # initialize env for the beginning of a new rollout
+#     # HINT: should be the output of resetting the env
 #     ob = env.reset()
 #
 #     # init vars
-#     # obs, acs, log_probs, rewards, next_obs, terminals, image_obs = [], [], [], [], [], [], []
-#     obs: List[np.ndarray] = []
-#     acs: List[np.ndarray] = []
-#     log_probs: List[np.ndarray] = []
-#     rewards: List[np.ndarray] = []
-#     next_obs: List[np.ndarray] = []
-#     terminals: List[int] = []
-#     image_obs: List[np.ndarray] = []
-#
+#     obs, acs, log_probs, rewards, next_obs, terminals, image_obs = [], [], [], [], [], [], []
 #     steps = 0
 #     while True:
+#
 #         # render image of the simulated env
 #         if render:
 #             if 'rgb_array' in render_mode:
@@ -176,50 +99,128 @@ def sample_trajectory(env, policy, agent: BaseAgent,
 #                     image_obs.append(env.render(mode=render_mode))
 #             if 'human' in render_mode:
 #                 env.render(mode=render_mode)
-#                 # TODO: implement this in NAV_ENV
-#                 # time.sleep(env.model.opt.timestep)
+#                 time.sleep(env.model.opt.timestep)
 #
 #         # use the most recent ob to decide what to do
 #         obs.append(ob)
-#         if expert:
-#             # stable_baselines3 implementation may need to change this
-#             # --- check this in every env
-#             ac, _ = policy.predict(ob, deterministic=True)
-#
-#             # expert demonstrations assume log_prob = 0, convert to np array to keep consistency
-#             log_prob = np.zeros(1, dtype=np.float32)
-#
-#         else:
-#             # query the policy's get_action function
-#             ac, log_prob = policy.get_action(ob)
-#             # unpack ac to remove unwanted type and dim --- check this in every env
-#             ac = ac[0]
+#         # HINT: query the policy's get_action function
+#         ac, log_prob = policy.get_action(ob)
+#         ac = ac[0]
 #         acs.append(ac)
 #         log_probs.append(log_prob)
-#
 #         # take that action and record results
 #         ob, rew, done, _ = env.step(ac)
+#
 #         # record result of taking that action
 #         steps += 1
 #         next_obs.append(ob)
+#         rewards.append(rew)
 #
-#         if expert:  # should expert using true reward?
-#             rewards.append(rew)
-#         else:
-#             # not running on gpu which is slow
-#             rewards.append(agent.reward.forward(torch.from_numpy(ob).float(),
-#                                                 torch.from_numpy(ac).float()).detach().numpy())
+#         # HINT: rollout can end due to done, or due to max_path_length
+#         # HINT: this is either 0 or 1
 #
-#         # end the rollout if (rollout can end due to done, or due to max_path_length)
 #         rollout_done = 0
-#         if done or steps >= max_path_length:  # Assume max_path_length == env.max_steps
-#             rollout_done = 1  # HINT: this is either 0 or 1
+#         if done or steps >= max_path_length:
+#             rollout_done = 1
 #         terminals.append(rollout_done)
 #
 #         if rollout_done:
 #             break
-#     # In GCL true rewards will not be used
+#
 #     return Path(obs, image_obs, acs, log_probs, rewards, next_obs, terminals)
+
+
+########################################################################################
+########################################################################################
+def sample_trajectory(env,
+                      policy,
+                      agent: BaseAgent,
+                      max_path_length: int,
+                      render=False, render_mode: str = 'rgb_array',
+                      expert=False
+                      ) -> PathDict:
+    """
+    Sample a single trajectory and returns infos
+    :param env: simulation environment
+    :param policy: current policy or expert policy
+    :param agent:
+    :param max_path_length: max_path_length should equal to env.max_steps
+    :param render: visualize trajectory if render is True
+    :param render_mode: 'human' or 'rgb_array'
+    :param expert: sample from expert policy if True
+    :return: PathDict
+    """
+    assert isinstance(max_path_length, int)
+    assert max_path_length >= 0
+    # initialize env for the beginning of a new rollout
+    ob = env.reset()
+
+    # init vars
+    # obs, acs, log_probs, rewards, next_obs, terminals, image_obs = [], [], [], [], [], [], []
+    obs: List[np.ndarray] = []
+    acs: List[np.ndarray] = []
+    log_probs: List[np.ndarray] = []
+    rewards: List[np.ndarray] = []
+    next_obs: List[np.ndarray] = []
+    terminals: List[int] = []
+    image_obs: List[np.ndarray] = []
+
+    steps = 0
+    while True:
+        # render image of the simulated env
+        if render:
+            if 'rgb_array' in render_mode:
+                if hasattr(env, 'sim'):
+                    image_obs.append(env.sim.render(camera_name='track', height=500, width=500)[::-1])
+                else:
+                    image_obs.append(env.render(mode=render_mode))
+            if 'human' in render_mode:
+                env.render(mode=render_mode)
+                # TODO: implement this in NAV_ENV
+                # time.sleep(env.model.opt.timestep)
+
+        # use the most recent ob to decide what to do
+        obs.append(ob)
+        if expert:
+            # stable_baselines3 implementation may need to change this
+            # --- check this in every env
+            ac, _ = policy.predict(ob, deterministic=True)
+
+            # expert demonstrations assume log_prob = 0, convert to np array to keep consistency
+            log_prob = np.zeros(1, dtype=np.float32)
+
+        else:
+            # query the policy's get_action function
+            ac, log_prob = policy.get_action(ob)
+            # unpack ac to remove unwanted type and dim --- check this in every env
+            ac = ac[0]
+        acs.append(ac)
+        log_probs.append(log_prob)
+
+        # take that action and record results
+        ob, rew, done, _ = env.step(ac)
+        # record result of taking that action
+        steps += 1
+        next_obs.append(ob)
+
+        if expert:  # should expert using true reward?
+            rewards.append(rew)
+        else:
+            # not running on gpu which is slow
+            rewards.append(agent.reward.forward(torch.from_numpy(ob).float(),
+                                                torch.from_numpy(ac).float()).detach().numpy())
+
+        # end the rollout if (rollout can end due to done, or due to max_path_length)
+        rollout_done = 0
+        if done or steps >= max_path_length:  # Assume max_path_length == env.max_steps
+            rollout_done = 1  # HINT: this is either 0 or 1
+        terminals.append(rollout_done)
+
+        if rollout_done:
+            break
+    # In GCL true rewards will not be used
+    return Path(obs, image_obs, acs, log_probs, rewards, next_obs, terminals)
+
 
 ########################################################################################
 
