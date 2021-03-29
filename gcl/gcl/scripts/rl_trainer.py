@@ -1,6 +1,6 @@
 import time
 from collections import OrderedDict
-from typing import List, Dict, Tuple, Any, Sequence
+from typing import List, Dict, Tuple, Any, Sequence, Optional
 
 import gym
 import gym_nav
@@ -39,8 +39,9 @@ class RL_Trainer(object):
         torch.cuda.manual_seed(seed)
 
         # init gpu
+        self.params['use_gpu'] = not self.params['no_gpu']
         ptu.init_gpu(
-            use_gpu=not self.params['no_gpu'],
+            use_gpu=self.params['use_gpu'],
             gpu_id=self.params['which_gpu']
         )
 
@@ -100,10 +101,19 @@ class RL_Trainer(object):
         agent_class = self.params['agent_class']
         self.agent = agent_class(self.env, self.params['agent_params'])
 
+    ##################################
+
+    def __repr__(self) -> str:
+        return f"RL_Trainer"
+
+    ##################################
+
     ############################################################################
 
-    def run_training_loop(self, n_iter: int,
-                          collect_policy, eval_policy):
+    def run_training_loop(self,
+                          n_iter: int,
+                          collect_policy: BasePolicy,
+                          eval_policy: BasePolicy):
         """
         :param n_iter:  number of () iterations
         :param collect_policy:
@@ -156,7 +166,7 @@ class RL_Trainer(object):
                 self.perform_logging(itr, paths, eval_policy, train_video_paths, train_logs)
 
                 if self.params['save_params']:
-                    self.agent.save('{}/agent_itr_{}.pt'.format(self.params['logdir'], itr))
+                    self.agent.save(f"{self.params['logdir']}/agent_itr_{itr}.pt")
             n_iter_loop.set_postfix(Training_Loss=train_logs_out)
 
         return train_logs_lst
@@ -167,7 +177,7 @@ class RL_Trainer(object):
     def collect_training_trajectories(self,
                                       collect_policy: BasePolicy,
                                       batch_size: int,
-                                      ) -> Tuple[List[PathDict], int, Any]:
+                                      ) -> Tuple[List[PathDict], int, Optional[List[PathDict]]]:
         """
         :param collect_policy:  the current policy using which we collect data
         :param batch_size:  the number of transitions we collect
@@ -188,13 +198,16 @@ class RL_Trainer(object):
             min_timesteps_per_batch=batch_size,
             max_path_length=self.params['ep_len']
         )
+        print(f"\n--envsteps_this_batch: {envsteps_this_batch}")
 
         return paths, envsteps_this_batch, train_video_paths
 
     ########################################################################################
 
     def train_policy(self) -> List[Sequence[Dict[str, np.ndarray]]]:
-        """ Policy Gradient """
+        """
+        Policy Gradient
+        """
         print('\nTraining agent using sampled data from replay buffer...')
         train_policy_logs = []
         for train_step in range(self.params['num_policy_train_steps_per_iter']):
@@ -205,8 +218,13 @@ class RL_Trainer(object):
 
         return train_policy_logs
 
-    def perform_logging(self, itr, paths, eval_policy, train_video_paths, all_logs):
+    ########################################################################################
 
+    def perform_logging(self, itr: int, paths: List[PathDict],
+                        eval_policy: BasePolicy,
+                        train_video_paths: List[PathDict], all_logs: List[Sequence[Dict]]
+                        ) -> None:
+        """Log metrics and Record Video"""
         last_log = all_logs[-1]
 
         #######################
@@ -219,7 +237,7 @@ class RL_Trainer(object):
                                                      min_timesteps_per_batch=self.params['eval_batch_size'],
                                                      max_path_length=self.params['ep_len']
                                                      )
-            eval_paths, eval_envsteps_this_batch = eval_returns
+        eval_paths, eval_envsteps_this_batch = eval_returns
 
         # save eval rollouts as videos in tensorboard event file
         if self.log_video and train_video_paths is not None:
@@ -284,5 +302,5 @@ class RL_Trainer(object):
         samp_paths_len = len(self.agent.sample_buffer)
         samp_data_len = self.agent.sample_buffer.num_data
         print(f"Sample_buffer_size: {samp_paths_len}, {samp_data_len}"
-              f" Average ep_len: {samp_data_len / samp_paths_len :.3f}")
+              f"\tAverage ep_len: {samp_data_len / samp_paths_len :.3f}")
         print("##########################################################################")
