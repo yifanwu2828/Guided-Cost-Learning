@@ -361,7 +361,7 @@ class GCL_Trainer(object):
             policy_loss = self.agent.train_policy(ob_batch, ac_batch, re_batch,
                                                   next_ob_batch, terminal_batch)
             train_policy_logs.append(policy_loss)
-            print(f"--Training_Loss: {policy_loss['Training_Loss']}")
+
         return train_policy_logs
 
     ############################################################################################

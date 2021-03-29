@@ -57,6 +57,26 @@ class MLPReward(nn.Module):
             lr=self.learning_rate
         )
 
+    #####################################################
+    #####################################################
+
+    def __repr__(self) -> str:
+        return f"Learning_Reward"
+
+    def save(self, PATH):
+        assert isinstance(PATH, str)
+        torch.save(
+            {
+                "MLPReward": self.state_dict(),
+                "mlp_state_dict": self.mlp.state_dict(),
+                'optimizer_state_dict': self.optimizer.state_dict(),
+                "A": self.self.A,
+                "b": self.b,
+                "w": self.w,
+            }, PATH
+        )
+    #####################################################
+    #####################################################
 
     def forward(self, observation: torch.FloatTensor, action: torch.FloatTensor) -> torch.FloatTensor:
         """
@@ -67,7 +87,6 @@ class MLPReward(nn.Module):
         z = torch.matmul(y, self.A) + self.b
         cost = (z * z).sum(-1) + self.w * (action * action).sum(-1)
         assert self.w.item() >= 0
-        # print(cost)
         # reward = - torch.sigmoid(cost)
         reward = - cost
         # print(reward)

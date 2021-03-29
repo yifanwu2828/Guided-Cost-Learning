@@ -4,6 +4,7 @@ from functools import reduce
 from itertools import accumulate
 
 import numpy as np
+import torch
 
 from .mlp_policy import MLPPolicyPG
 from .base_agent import BaseAgent
@@ -56,6 +57,29 @@ class GCL_Agent(BaseAgent, metaclass=ABCMeta):
         self.demo_buffer = ReplayBuffer(1000000)
         self.sample_buffer = ReplayBuffer(1000000)
         self.background_buffer = ReplayBuffer(1000000)
+
+    #####################################################
+    #####################################################
+
+    def __repr__(self) -> str:
+        return f"GCL_Agent"
+
+    #####################################################
+    #####################################################
+
+    def save(self, PATH) -> None:
+        assert isinstance(PATH, str)
+        torch.save(
+            {
+                "demo_buffer": self.demo_buffer,
+                "samp_buffer": self.sample_buffer,
+                "actor": self.actor,
+                "reward": self.reward,
+            }, PATH
+        )
+
+    #####################################################
+    #####################################################
 
     def train_reward(self, demo_batch: np.ndarray, sample_batch: np.ndarray) -> dict:
         """
@@ -182,7 +206,6 @@ class GCL_Agent(BaseAgent, metaclass=ABCMeta):
         else:
             return self.sample_buffer.sample_random_rollouts(num_rollouts)
 
-
     def sample_recent_rollouts(self, num_rollouts: int, demo=False) -> np.ndarray:
         """
         Sample recent paths from demo or sample buffer
@@ -195,7 +218,6 @@ class GCL_Agent(BaseAgent, metaclass=ABCMeta):
             return self.demo_buffer.sample_recent_rollouts(num_rollouts)
         else:
             return self.sample_buffer.sample_recent_rollouts(num_rollouts)
-
 
     def sample_background_rollouts(self, batch_size: Optional[int] = 1000,
                                    recent=False, all_rollouts=False) -> np.ndarray:
