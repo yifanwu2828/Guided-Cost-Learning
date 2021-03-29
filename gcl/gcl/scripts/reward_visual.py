@@ -44,7 +44,8 @@ if __name__ == '__main__':
     reward_model = torch.load(fname1)
     reward_model.eval()
 
-    fname2 = "test_policy2.pth"
+    # fname2 = "test_policy2.pth"
+    fname2 = "test_pg.pth"
     policy_model = torch.load(fname2)
     policy_model.eval()
 
@@ -213,39 +214,33 @@ if __name__ == '__main__':
     policy_expert_dict = {"act": [], "obs": [], "expert_reward": [], "done": [], "info": []}
     #######################################################################################
     ''' TEST Policy'''
-    env_agent = gym.make('NavEnv-v0')
-    env_agent.seed(0)
-    collect = False
     if POLICY:
-        t = 0
-        obs = env_agent.reset()  # set inital position
-        policy_expert_dict["obs"].append(obs)
-        n_step = range(1000)
-        for i in tqdm(n_step, leave=False):
-            action, _states = model.predict(obs, deterministic=True)
-            if collect:
-                obs, reward, done, _ = env.step(action)
-                policy_expert_dict["act"].append(action)
-                policy_expert_dict["obs"].append(obs)
-                policy_expert_dict["expert_reward"].append(reward)
-                policy_expert_dict["done"].append(done)
+        eval_env = gym.make("NavEnv-v0")
+        all_episode_rewards = []
+        all_episode_len = []
+        num_episodes = 10
+        for _ in tqdm(range(num_episodes)):
+            episode_rewards = []
+            episode_len = 0
+            done = False
+            obs = eval_env.reset()
 
-            action, _ = policy_model.get_action(obs)
-            action = action.reshape(-1)
+            while not done:
+                action, log_prob = policy_model.get_action(obs)
+                action = action[0]
+                obs, reward, done, info = eval_env.step(action)
+                episode_rewards.append(reward)
+                episode_len += 1
+                eval_env.render()
 
-            obs, reward, done, _ = env.step(action)
-            policy_log_dict["act"].append(action)
-            policy_log_dict["obs"].append(obs)
-            policy_log_dict["agent_reward"].append(reward)
-            # if i <5:
-            #     env.render()
-            env.render()
-            if done:
-                ep_len = int(i - t)
-                # policy_expert_dict["info"].append(ep_len)
-                policy_log_dict["ep_len"].append(ep_len)
-                print(env.pos)
-                print(f"itr:{i}, step:{ep_len} -> done :{done}")
-                obs = env.reset()
-                t = i
-        env.close()
+            all_episode_rewards.append(sum(episode_rewards))
+            all_episode_len.append(episode_len)
+        eval_env.close()
+        mean_episode_reward = np.mean(all_episode_rewards)
+        max_episode_reward = np.max(all_episode_rewards)
+        std_episode_reward = np.std(all_episode_rewards)
+        mean_ep_len = np.array(all_episode_len).mean()
+        print(f"Mean_reward:{mean_episode_reward:.3f} +/- {std_episode_reward:.3f} in {num_episodes} episodes")
+        print(f"Max_reward:{max_episode_reward:.3f} in {num_episodes} episodes")
+        print(f"Mean_ep_len:{mean_ep_len:.3f} in {num_episodes} episodes")
+

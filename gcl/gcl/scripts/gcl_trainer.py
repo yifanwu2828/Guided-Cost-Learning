@@ -81,7 +81,7 @@ class GCL_Trainer(object):
         # simulation timestep, will be used for video saving
         # Frame Rate
         if 'model' in dir(self.env):
-            self.fps = 1/self.env.model.opt.timestep
+            self.fps = 1 / self.env.model.opt.timestep
         elif 'env_wrappers' in self.params:
             self.fps = 30  # This is not actually used when using the Monitor wrapper
         # elif 'video.frames_per_second' in self.env.env.metadata.keys():
@@ -171,16 +171,16 @@ class GCL_Trainer(object):
             # collect trajectories, to be used for training
             # On-policy PG need to collect new trajectories at *every* iteration
             with torch.no_grad():
-
                 training_returns = self.collect_training_trajectories(
-                    collect_policy, self.params['sample_size']
+                    collect_policy=collect_policy,
+                    batch_size=self.params["train_batch_size"]
                 )
             samp_paths, envsteps_this_batch, train_video_paths = training_returns
-            # self.total_envsteps += envsteps_this_batch
+            self.total_envsteps += envsteps_this_batch
 
             # 4. Append samples D_traj to D_samp
             self.agent.add_to_buffer(samp_paths)
-            self.buffer_status()
+            self.buffer_status(demo=True, samp=True, background=True)
 
             # 5. Use D_{samp} to update cost c_{\theta}
             reward_logs = self.train_reward()  # Algorithm 2
@@ -278,18 +278,18 @@ class GCL_Trainer(object):
         # Init var
         train_video_paths = None
         paths: List[PathDict]
+        envsteps_this_batch = 0
 
         print("\nCollecting sample trajectories to be used for training...")
-        envsteps_this_batch = 0
-        paths: List[PathDict] = utils.sample_n_trajectories(
+
+        paths, envsteps_this_batch = utils.sample_trajectories(
             env=self.env,
             policy=collect_policy,
             agent=self.agent,
-            ntrajs=batch_size,
-            max_path_length=self.params['ep_len'],
-            render=False,
-            expert=False
+            min_timesteps_per_batch=batch_size,
+            max_path_length=self.params['ep_len']
         )
+        print(f"\n--envsteps_this_batch: {envsteps_this_batch}")
 
         # if self.log_video:
         #     print('\nCollecting train rollouts to be used for saving videos...')
@@ -361,7 +361,7 @@ class GCL_Trainer(object):
             policy_loss = self.agent.train_policy(ob_batch, ac_batch, re_batch,
                                                   next_ob_batch, terminal_batch)
             train_policy_logs.append(policy_loss)
-
+            print(f"--Training_Loss: {policy_loss['Training_Loss']}")
         return train_policy_logs
 
     ############################################################################################
@@ -401,7 +401,6 @@ class GCL_Trainer(object):
                                             video_title='train_rollouts')
             self.logger.log_paths_as_videos(eval_video_paths, itr, fps=self.fps, max_videos_to_save=MAX_NVIDEO,
                                             video_title='eval_rollouts')
-            pass
         #######################
 
         # save eval metrics
@@ -439,7 +438,7 @@ class GCL_Trainer(object):
             logs["Initial_DataCollection_AverageReturn"] = self.initial_return
 
             # perform the logging
-            print("---------------------------------------------------")
+            print("\n---------------------------------------------------")
             for key, value in logs.items():
                 print(f'|\t{key} : {value:.3f}')
                 self.logger.log_scalar(value, key, itr)
@@ -447,8 +446,9 @@ class GCL_Trainer(object):
 
             self.logger.flush()
 
-    def buffer_status(self, demo=True, samp=True, background=True) -> None:
+    def buffer_status(self, demo=False, samp=False, background=False) -> None:
         """ Show length and size of buffers"""
+        assert any([demo, samp, background])
         if demo:
             demo_paths_len = len(self.agent.demo_buffer)
             demo_data_len = self.agent.demo_buffer.num_data
@@ -458,10 +458,13 @@ class GCL_Trainer(object):
             samp_paths_len = len(self.agent.sample_buffer)
             samp_data_len = self.agent.sample_buffer.num_data
             print(f"Sample_buffer_size: {samp_paths_len}, {samp_data_len}"
-                  f" Average ep_len: {samp_data_len / samp_paths_len}")
+                  f" Average ep_len: {samp_data_len / samp_paths_len:.3f}")
         if background:
             back_paths_len = len(self.agent.background_buffer)
             back_data_len = self.agent.background_buffer.num_data
-        print(f"Back_buffer_size: {len(self.agent.background_buffer)}, {self.agent.background_buffer.num_data}"
-              f"\tAverage ep_len: {back_data_len / back_paths_len :.3f} ")
+            if back_paths_len == back_data_len == 0:
+                print(f"Back_buffer_size: {len(self.agent.background_buffer)}, {self.agent.background_buffer.num_data}")
+            else:
+                print(f"Back_buffer_size: {len(self.agent.background_buffer)}, {self.agent.background_buffer.num_data}"
+                      f"\tAverage ep_len: {back_data_len / back_paths_len :.3f} ")
         print("##########################################################################")

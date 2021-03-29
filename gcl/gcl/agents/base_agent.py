@@ -12,11 +12,9 @@ class BaseAgent(object, metaclass=abc.ABCMeta):
         """Return a dictionary of logging information."""
         raise NotImplementedError
 
-    @abc.abstractmethod
     def add_to_replay_buffer(self, paths):
         raise NotImplementedError
 
-    @abc.abstractmethod
     def sample(self, batch_size):
         raise NotImplementedError
 

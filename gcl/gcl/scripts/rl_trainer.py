@@ -191,6 +191,7 @@ class RL_Trainer(object):
         paths: List[PathDict]
 
         print("\nCollecting data to be used for training...")
+
         paths, envsteps_this_batch = utils.sample_trajectories(
             env=self.env,
             policy=collect_policy,
@@ -288,7 +289,7 @@ class RL_Trainer(object):
             logs["Initial_DataCollection_AverageReturn"] = self.initial_return
 
             # perform the logging
-            print("---------------------------------------------------")
+            print("\n---------------------------------------------------")
             for key, value in logs.items():
                 print(f'|\t{key} : {value:.3f}')
                 self.logger.log_scalar(value, key, itr)

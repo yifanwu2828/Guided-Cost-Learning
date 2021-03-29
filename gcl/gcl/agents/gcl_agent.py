@@ -132,6 +132,7 @@ class GCL_Agent(BaseAgent, metaclass=ABCMeta):
 
             # ensure that the baseline and q_values have the same dimensionality
             # to prevent silent broadcasting errors
+            q_values = q_values.reshape(-1)
             assert baselines_unnormalized.ndim == q_values.ndim
 
             # baseline was trained with standardized q_values, so ensure that the predictions
