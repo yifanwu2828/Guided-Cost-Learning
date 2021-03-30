@@ -110,7 +110,7 @@ class GCL_Trainer(object):
     ##################################
 
     def __repr__(self) -> str:
-        return f"GCL_Trainer"
+        return f"{self.__class__.__name__}"
 
     ##################################
 
@@ -187,20 +187,20 @@ class GCL_Trainer(object):
             # 6. Update q_k(\tau) using D_{traj} and using GPS or PG
             policy_logs = self.train_policy()
 
-            # log/save
-            if self.log_video or self.log_metrics:
-                # perform logging
-                print('\nBeginning logging procedure...')
-                self.perform_logging(itr, samp_paths, eval_policy,
-                                     train_video_paths, reward_logs, policy_logs)
-                # save_params
-                if self.params['save_params']:
-                    self.agent.save(f"{self.params['logdir']}/agent_itr_{itr}.pt")
+            # # log/save
+            # if self.log_video or self.log_metrics:
+            #     # perform logging
+            #     print('\nBeginning logging procedure...')
+            #     self.perform_logging(itr, samp_paths, eval_policy,
+            #                          train_video_paths, reward_logs, policy_logs)
+            #     # save_params
+            #     if self.params['save_params']:
+            #         self.agent.save(f"{self.params['logdir']}/agent_itr_{itr}.pt")
 
             for r, p in zip(reward_logs, policy_logs):
-                reward_loss = float(r['Training reward loss'])
+                reward_loss = float(r['Training_Reward_Loss'])
                 train_log_lst.append(reward_loss)
-                policy_loss = float(p["Training_Loss"])
+                policy_loss = float(p["Training_Policy_Loss"])
                 policy_log_lst.append(policy_loss)
 
             # update progress bar
@@ -279,7 +279,6 @@ class GCL_Trainer(object):
         envsteps_this_batch: int
         train_video_paths: Optional[List[PathDict]] = None
 
-
         print("\nCollecting sample trajectories to be used for training...")
 
         paths, envsteps_this_batch = utils.sample_trajectories(
@@ -355,14 +354,14 @@ class GCL_Trainer(object):
                 demo=False
             )
             policy_loss: dict = self.agent.train_policy(ob_batch, ac_batch, re_batch,
-                                                  next_ob_batch, terminal_batch)
+                                                        next_ob_batch, terminal_batch)
             train_policy_logs.append(policy_loss)
 
         return train_policy_logs
 
     ############################################################################################
 
-    def perform_logging(self, itr: int, paths: List[PathDict],
+    def perform_logging(self, itr: int, train_paths: List[PathDict],
                         eval_policy: BasePolicy,
                         train_video_paths: List[PathDict],
                         reward_logs: list, policy_logs: list
@@ -379,7 +378,8 @@ class GCL_Trainer(object):
             eval_returns = utils.sample_trajectories(self.env,
                                                      eval_policy, self.agent,
                                                      min_timesteps_per_batch=self.params['eval_batch_size'],
-                                                     max_path_length=self.params['ep_len']
+                                                     max_path_length=self.params['ep_len'],
+                                                     evaluate=True,
                                                      )
         eval_paths, eval_envsteps_this_batch = eval_returns
 
@@ -401,17 +401,17 @@ class GCL_Trainer(object):
         ##############################################################################################################
 
         # save eval metrics
-        # TODO: should parse the reward training loss and policy training loss
         if self.log_metrics:
             # returns, for logging
-            train_returns = [path["reward"].sum() for path in paths]
+            train_returns = [path["reward"].sum() for path in train_paths]
             eval_returns = [eval_path["reward"].sum() for eval_path in eval_paths]
 
             # episode lengths, for logging
-            train_ep_lens = [len(path["reward"]) for path in paths]
+            train_ep_lens = [len(path["reward"]) for path in train_paths]
             eval_ep_lens = [len(eval_path["reward"]) for eval_path in eval_paths]
 
             # decide what to log
+            '''here eval are viewing True Reward, train viewing MLP Reward'''
             logs = OrderedDict()
             logs["Eval_AverageReturn"] = np.mean(eval_returns)
             logs["Eval_StdReturn"] = np.std(eval_returns)
@@ -428,6 +428,7 @@ class GCL_Trainer(object):
             logs["Train_EnvstepsSoFar"] = self.total_envsteps
             logs["TimeSinceStart"] = time.time() - self.start_time
             logs.update(last_policy_log)
+            logs.update(last_reward_log)
 
             if itr == 0:
                 self.initial_return = np.mean(train_returns)
@@ -436,7 +437,7 @@ class GCL_Trainer(object):
             # perform the logging
             print("\n---------------------------------------------------")
             for key, value in logs.items():
-                print(f'|\t{key:<20} | {value:>10.3f}')
+                print(f'|\t{key:<20} | {value:>10.3f} |')
                 self.logger.log_scalar(value, key, itr)
             print("---------------------------------------------------")
 
@@ -454,8 +455,10 @@ class GCL_Trainer(object):
         if samp:
             samp_paths_len = len(self.agent.sample_buffer)
             samp_data_len = self.agent.sample_buffer.num_data
+            samp_new_paths_len = self.agent.sample_buffer.new_path_len
             print(f"{'Sample_buffer_size:': <20} {samp_paths_len}, {samp_data_len}"
-                  f" {'-> Average Samp ep_len:': ^25} {samp_data_len / samp_paths_len:>10.3f}")
+                  f" {'-> Average Samp ep_len:': ^25} {samp_data_len / samp_paths_len:>10.3f}"
+                  f"\tsamp_new_paths_len: {samp_data_len / samp_new_paths_len:.3f}")
         if background:
             back_paths_len = len(self.agent.background_buffer)
             back_data_len = self.agent.background_buffer.num_data
