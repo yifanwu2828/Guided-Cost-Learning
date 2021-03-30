@@ -1,6 +1,5 @@
 import pickle
 import time
-import datetime
 from functools import lru_cache
 from collections import OrderedDict
 from typing import List, Optional, Tuple, Dict, Sequence, Any
@@ -386,8 +385,8 @@ class GCL_Trainer(object):
         # save eval rollouts as videos in tensorboard event file
         if self.log_video and train_video_paths is not None:
             print('\nCollecting video rollouts eval')
-            with torch.no_grad():
-                eval_video_paths = utils.sample_n_trajectories(self.env, eval_policy, self.agent,
+            # with torch.no_grad():
+            eval_video_paths = utils.sample_n_trajectories(self.env, eval_policy, self.agent,
                                                                ntrajs=MAX_NVIDEO,
                                                                max_path_length=MAX_VIDEO_LEN,
                                                                render=True, expert=False
@@ -437,7 +436,10 @@ class GCL_Trainer(object):
             # perform the logging
             print("\n---------------------------------------------------")
             for key, value in logs.items():
-                print(f'|\t{key:<20} | {value:>10.3f} |')
+                if isinstance(value, str):
+                    print(f'|\t{key:<20} | {value:>10} |')
+                else:
+                    print(f'|\t{key:<20} | {value:>10.3f} |')
                 self.logger.log_scalar(value, key, itr)
             print("---------------------------------------------------")
 
@@ -457,8 +459,8 @@ class GCL_Trainer(object):
             samp_data_len = self.agent.sample_buffer.num_data
             samp_new_paths_len = self.agent.sample_buffer.new_path_len
             print(f"{'Sample_buffer_size:': <20} {samp_paths_len}, {samp_data_len}"
-                  f" {'-> Average Samp ep_len:': ^25} {samp_data_len / samp_paths_len:>10.3f}"
-                  f"\tsamp_new_paths_len: {samp_data_len / samp_new_paths_len:.3f}")
+                  f" {'-> Average Samp ep_len:': ^25} {samp_data_len / samp_paths_len:>10}"
+                  f"\t\tSamp_new_num_rollouts: {samp_new_paths_len :.3f}")
         if background:
             back_paths_len = len(self.agent.background_buffer)
             back_data_len = self.agent.background_buffer.num_data

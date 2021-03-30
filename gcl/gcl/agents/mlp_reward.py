@@ -1,4 +1,3 @@
-import itertools
 from typing import List
 import numpy as np
 import torch
@@ -52,11 +51,13 @@ class MLPReward(nn.Module):
             lr=self.learning_rate
         )
 
+        # self.mlp.to(ptu.device)
+
     #####################################################
     #####################################################
 
     def __repr__(self) -> str:
-        return f"Learning_Reward"
+        return f"{self.__class__.__name__}"
 
     def save(self, PATH):
         assert isinstance(PATH, str)
@@ -153,5 +154,5 @@ class MLPReward(nn.Module):
         loss.backward()
         self.optimizer.step()
 
-        train_reward_log = {"Training reward loss": ptu.to_numpy(loss)}
+        train_reward_log = {"Training_Reward_Loss": ptu.to_numpy(loss)}
         return train_reward_log
