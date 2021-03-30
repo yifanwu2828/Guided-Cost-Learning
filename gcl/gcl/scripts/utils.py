@@ -78,66 +78,12 @@ def evaluate_model(eval_env_id, model, num_episodes=1000, render=False):
 
 ########################################################################################
 ########################################################################################
-# # This version of function is used for PG test
-# def sample_trajectory(env, policy, agent: BaseAgent,
-#                       max_path_length, render=False, render_mode=('rgb_array'), expert=None):
-#     # initialize env for the beginning of a new rollout
-#     # HINT: should be the output of resetting the env
-#     ob = env.reset()
-#
-#     # init vars
-#     obs, acs, log_probs, rewards, next_obs, terminals, image_obs = [], [], [], [], [], [], []
-#     steps = 0
-#     while True:
-#
-#         # render image of the simulated env
-#         if render:
-#             if 'rgb_array' in render_mode:
-#                 if hasattr(env, 'sim'):
-#                     image_obs.append(env.sim.render(camera_name='track', height=500, width=500)[::-1])
-#                 else:
-#                     image_obs.append(env.render(mode=render_mode))
-#             if 'human' in render_mode:
-#                 env.render(mode=render_mode)
-#                 time.sleep(env.model.opt.timestep)
-#
-#         # use the most recent ob to decide what to do
-#         obs.append(ob)
-#         # HINT: query the policy's get_action function
-#         ac, log_prob = policy.get_action(ob)
-#         ac = ac[0]
-#         acs.append(ac)
-#         log_probs.append(log_prob)
-#         # take that action and record results
-#         ob, rew, done, _ = env.step(ac)
-#
-#         # record result of taking that action
-#         steps += 1
-#         next_obs.append(ob)
-#         rewards.append(rew)
-#
-#         # HINT: rollout can end due to done, or due to max_path_length
-#         # HINT: this is either 0 or 1
-#
-#         rollout_done = 0
-#         if done or steps >= max_path_length:
-#             rollout_done = 1
-#         terminals.append(rollout_done)
-#
-#         if rollout_done:
-#             break
-#
-#     return Path(obs, image_obs, acs, log_probs, rewards, next_obs, terminals)
-
-
-########################################################################################
-########################################################################################
 def sample_trajectory(env,
                       policy,
-                      agent: BaseAgent,
+                      agent,
                       max_path_length: int,
                       render=False, render_mode: str = 'rgb_array',
-                      expert=False
+                      expert=False, evaluate=False
                       ) -> PathDict:
     """
     Sample a single trajectory and returns infos
@@ -148,6 +94,7 @@ def sample_trajectory(env,
     :param render: visualize trajectory if render is True
     :param render_mode: 'human' or 'rgb_array'
     :param expert: sample from expert policy if True
+    :param evaluate:
     :return: PathDict
     """
     assert isinstance(max_path_length, int)
@@ -156,7 +103,6 @@ def sample_trajectory(env,
     ob = env.reset()
 
     # init vars
-    # obs, acs, log_probs, rewards, next_obs, terminals, image_obs = [], [], [], [], [], [], []
     obs: List[np.ndarray] = []
     acs: List[np.ndarray] = []
     log_probs: List[np.ndarray] = []
@@ -189,7 +135,7 @@ def sample_trajectory(env,
             # expert demonstrations assume log_prob = 0, convert to np array to keep consistency
             log_prob = np.zeros(1, dtype=np.float32)
 
-        else:
+        else:  # collected policy
             # query the policy's get_action function
             ac, log_prob = policy.get_action(ob)
             # unpack ac to remove unwanted type and dim --- check this in every env
@@ -203,7 +149,7 @@ def sample_trajectory(env,
         steps += 1
         next_obs.append(ob)
 
-        if expert:  # should expert using true reward?
+        if expert or evaluate:  # should expert using true reward?
             rewards.append(rew)
         else:
             # not running on gpu which is slow
@@ -227,7 +173,7 @@ def sample_trajectory(env,
 def sample_trajectories(env, policy, agent: BaseAgent,
                         min_timesteps_per_batch: int, max_path_length: int,
                         render=False, render_mode: str = 'rgb_array',
-                        expert=False
+                        expert=False, evaluate=False
                         ) -> Tuple[List[PathDict], int]:
     """
     Sample rollouts until we have collected batch_size trajectories
@@ -239,6 +185,7 @@ def sample_trajectories(env, policy, agent: BaseAgent,
     :param render: visualize trajectory if render is True
     :param render_mode: 'human' or 'rgb_array'
     :param expert: sample from expert policy if True
+    :param evaluate
     :return: List[PathDict], timesteps_this_batch
     """
     assert isinstance(min_timesteps_per_batch, int) and isinstance(max_path_length, int)
@@ -254,7 +201,8 @@ def sample_trajectories(env, policy, agent: BaseAgent,
             max_path_length=max_path_length,
             render=render,
             render_mode=render_mode,
-            expert=expert
+            expert=expert,
+            evaluate=evaluate
         )
         paths.append(path)
         timesteps_this_batch += get_pathlength(path)
@@ -266,7 +214,7 @@ def sample_trajectories(env, policy, agent: BaseAgent,
 def sample_n_trajectories(env, policy, agent: BaseAgent,
                           ntrajs: int, max_path_length: int,
                           render=False, render_mode: str = 'rgb_array',
-                          expert=False
+                          expert=False, evaluate=False
                           ) -> List[PathDict]:
     """
     :param env: simulation environment
@@ -277,6 +225,7 @@ def sample_n_trajectories(env, policy, agent: BaseAgent,
     :param render: visualize trajectory if render is True
     :param render_mode: 'human' or 'rgb_array'
     :param expert: sample from expert policy if True
+    :param evaluate
     :return: List[PathDict]
     """
     assert isinstance(ntrajs, int) and isinstance(max_path_length, int)
@@ -284,7 +233,8 @@ def sample_n_trajectories(env, policy, agent: BaseAgent,
     ntraj_paths: List[PathDict] = [sample_trajectory(env, policy, agent,
                                                      max_path_length,
                                                      render=render, render_mode=render_mode,
-                                                     expert=expert) for _ in range(ntrajs)
+                                                     expert=expert, evaluate=evaluate
+                                                     ) for _ in range(ntrajs)
                                    ]
     return ntraj_paths
 
