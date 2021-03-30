@@ -149,6 +149,9 @@ class MLPPolicyPG(MLPPolicy):
         # Init baseline_loss
         self.baseline_loss = nn.MSELoss()
 
+    def __repr__(self):
+        return f"{self.__class__.__name__}"
+
     def update(self,
                observations: np.ndarray,
                actions: np.ndarray,
@@ -182,7 +185,7 @@ class MLPPolicyPG(MLPPolicy):
         loss.backward()
         self.optimizer.step()
 
-        train_log = {'Training_Loss': ptu.to_numpy(loss)}
+        train_log = {'Training_Policy_Loss': ptu.to_numpy(loss)}
 
         # Apply baseline to reduce variance
         if self.nn_baseline and q_values is not None:
