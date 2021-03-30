@@ -73,6 +73,7 @@ def removeOutliers(x, outlierConstant=1.5) -> list:
 
 
 if __name__ == '__main__':
+    print(torch.__version__)
     # set overflow warning to error instead
     np.seterr(all='raise')
     torch.backends.cudnn.benchmark = True
@@ -190,7 +191,7 @@ if __name__ == '__main__':
     # Number of policy updates per iteration
     params["num_policy_train_steps_per_iter"] = 1  # K_p
     # Number of transition steps to sample from sample replay buffer per policy update
-    params["train_batch_size"] = 10000
+    params["train_batch_size"] = 10_000
 
 
 
