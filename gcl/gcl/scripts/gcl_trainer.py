@@ -51,7 +51,7 @@ class GCL_Trainer(object):
             use_gpu=self.params['use_gpu'],
             gpu_id=self.params['which_gpu']
         )
-
+        print("Trainer", ptu.device)
         #############
         # ENV
         #############
@@ -136,9 +136,10 @@ class GCL_Trainer(object):
 
         #####################################################################
         # 1. Add demonstrations to replay buffer
-        demo_paths, _, _ = self.collect_demo_trajectories(expert_data, expert_policy,
-                                                          ntrajs=self.params['demo_size'],
-                                                          render=False, verbose=True)
+        with torch.no_grad():
+            demo_paths, _, _ = self.collect_demo_trajectories(expert_data, expert_policy,
+                                                              ntrajs=self.params['demo_size'],
+                                                              render=False, verbose=True)
         self.agent.add_to_buffer(demo_paths, demo=True)
         print(f'\nNum of Demo rollouts collected:{self.agent.demo_buffer.num_paths}')
         print(f'Num of Demo transition steps collected:{self.agent.demo_buffer.num_data}')
@@ -167,13 +168,17 @@ class GCL_Trainer(object):
             # 3. Generate fresh samples D_traj from current trajectory distribution q_k (collect_policy)
             # collect trajectories, to be used for training
             # On-policy PG need to collect new trajectories at *every* iteration
+            samp_start_time = time.time()
             with torch.no_grad():
                 training_returns = self.collect_training_trajectories(
                     collect_policy=collect_policy,
                     batch_size=self.params["train_batch_size"]
                 )
+            # utils.toc(samp_start_time, "collect training trajs")
             samp_paths, envsteps_this_batch, train_video_paths = training_returns
             self.total_envsteps += envsteps_this_batch
+
+            del training_returns
 
             # 4. Append samples D_traj to D_samp
             self.agent.add_to_buffer(samp_paths)
@@ -181,10 +186,14 @@ class GCL_Trainer(object):
             self.buffer_status(demo=True, samp=True)
 
             # 5. Use D_{samp} to update cost c_{\theta}
+            rew_start_time = time.time()
             reward_logs = self.train_reward()  # Algorithm 2
+            # utils.toc(rew_start_time, "Update Reward")
 
             # 6. Update q_k(\tau) using D_{traj} and using GPS or PG
+            ply_start_time = time.time()
             policy_logs = self.train_policy()
+            # utils.toc(rew_start_time, "Update Policy")
 
             # # log/save
             # if self.log_video or self.log_metrics:
@@ -196,9 +205,10 @@ class GCL_Trainer(object):
             #     if self.params['save_params']:
             #         self.agent.save(f"{self.params['logdir']}/agent_itr_{itr}.pt")
 
-            for r, p in zip(reward_logs, policy_logs):
+            for r in reward_logs:
                 reward_loss = float(r['Training_Reward_Loss'])
                 train_log_lst.append(reward_loss)
+            for p in policy_logs:
                 policy_loss = float(p["Training_Policy_Loss"])
                 policy_log_lst.append(policy_loss)
 
@@ -285,13 +295,13 @@ class GCL_Trainer(object):
             policy=collect_policy,
             agent=self.agent,
             min_timesteps_per_batch=batch_size,
-            max_path_length=self.params['ep_len']
+            max_path_length=self.params['ep_len'],
         )
         # print(f"\n--envsteps_this_batch: {envsteps_this_batch}")
 
         # if self.log_video:
         #     print('\nCollecting train rollouts to be used for saving videos...')
-        #     # TODO look in utils and implement sample_n_trajectories -- implemented
+        #     # TODO look in utils and
         #     pass
         #
         # # TODO: add logging
@@ -365,7 +375,16 @@ class GCL_Trainer(object):
                         train_video_paths: List[PathDict],
                         reward_logs: list, policy_logs: list
                         ) -> None:
-        """Log metrics and Record Video"""
+        """
+        Log metrics and Record Video
+        :param itr:
+        :param train_paths: training trajs or step
+        :param eval_policy: policy used to evaluate
+        :param train_video_paths: trajs to record as video
+        :param reward_logs: list of train logs  containing training_reward_loss
+        :param policy_logs: list of policy logs containing training_policy_loss
+        """
+
         last_reward_log = reward_logs[-1]
         last_policy_log = policy_logs[-1]
 
@@ -373,13 +392,13 @@ class GCL_Trainer(object):
 
         # collect eval trajectories, for logging
         print("\nCollecting data for eval...")
-        with torch.no_grad():
-            eval_returns = utils.sample_trajectories(self.env,
-                                                     eval_policy, self.agent,
-                                                     min_timesteps_per_batch=self.params['eval_batch_size'],
-                                                     max_path_length=self.params['ep_len'],
-                                                     evaluate=True,
-                                                     )
+        # with torch.no_grad():
+        eval_returns = utils.sample_trajectories(self.env,
+                                                 eval_policy, self.agent,
+                                                 min_timesteps_per_batch=self.params['eval_batch_size'],
+                                                 max_path_length=self.params['ep_len'],
+                                                 evaluate=True,
+                                                 )
         eval_paths, eval_envsteps_this_batch = eval_returns
 
         # save eval rollouts as videos in tensorboard event file
@@ -387,10 +406,10 @@ class GCL_Trainer(object):
             print('\nCollecting video rollouts eval')
             # with torch.no_grad():
             eval_video_paths = utils.sample_n_trajectories(self.env, eval_policy, self.agent,
-                                                               ntrajs=MAX_NVIDEO,
-                                                               max_path_length=MAX_VIDEO_LEN,
-                                                               render=True, expert=False
-                                                               )
+                                                           ntrajs=MAX_NVIDEO,
+                                                           max_path_length=MAX_VIDEO_LEN,
+                                                           render=True, expert=False
+                                                           )
             # save train/eval videos
             print('\nSaving train rollouts as videos...')
             self.logger.log_paths_as_videos(train_video_paths, itr, fps=self.fps, max_videos_to_save=MAX_NVIDEO,
@@ -453,14 +472,15 @@ class GCL_Trainer(object):
             demo_paths_len = len(self.agent.demo_buffer)
             demo_data_len = self.agent.demo_buffer.num_data
             print(f"{'Demo_buffer_size:': <20} {demo_paths_len}, {demo_data_len}"
-                  f"{'-> Average Demo ep_len:': ^25} {demo_data_len / demo_paths_len:>10.3f}")
+                  f"{'-> Average Demo ep_len:': ^25} {demo_data_len / demo_paths_len:>10.2f}")
         if samp:
             samp_paths_len = len(self.agent.sample_buffer)
             samp_data_len = self.agent.sample_buffer.num_data
             samp_new_paths_len = self.agent.sample_buffer.new_path_len
+            samp_new_data_len = self.agent.sample_buffer.new_data_len
             print(f"{'Sample_buffer_size:': <20} {samp_paths_len}, {samp_data_len}"
-                  f" {'-> Average Samp ep_len:': ^25} {samp_data_len / samp_paths_len:>10}"
-                  f"\t\tSamp_new_num_rollouts: {samp_new_paths_len :.3f}")
+                  f" {'-> Average Samp ep_len:': ^25} {samp_data_len / samp_paths_len:>10.2f}"
+                  f"\t\tSamp_new_rollouts_ep_len: {samp_new_data_len /samp_new_paths_len :>10.2f}")
         if background:
             back_paths_len = len(self.agent.background_buffer)
             back_data_len = self.agent.background_buffer.num_data
@@ -468,5 +488,5 @@ class GCL_Trainer(object):
                 print(f"Back_buffer_size: {len(self.agent.background_buffer)}, {self.agent.background_buffer.num_data}")
             else:
                 print(f"Back_buffer_size: {len(self.agent.background_buffer)}, {self.agent.background_buffer.num_data}"
-                      f"\tAverage ep_len: {back_data_len / back_paths_len :.3f} ")
+                      f"\tAverage ep_len: {back_data_len / back_paths_len :.2f} ")
         print("##########################################################################")
