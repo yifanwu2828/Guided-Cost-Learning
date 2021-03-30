@@ -15,6 +15,8 @@ class ReplayBuffer(object):
         self._num_paths: int = 0
         self._num_data: int = 0
 
+        self._new_path_len: int = 0
+
         # store (concatenated) component arrays from each rollout
         self._obs = None
         self._acs = None
@@ -36,6 +38,15 @@ class ReplayBuffer(object):
     def paths(self, value):
         assert isinstance(value, np.ndarray) or isinstance(value, list)
         self._paths = value
+
+    @property
+    def new_path_len(self) -> int:
+        return self._new_path_len
+
+    @new_path_len.setter
+    def new_path_len(self, value):
+        assert isinstance(value, int)
+        self._new_path_len = value
 
     @property
     def num_paths(self) -> int:
@@ -133,6 +144,7 @@ class ReplayBuffer(object):
     def add_rollouts(self, paths: List[PathDict]) -> None:
         """ Add new rollouts into our list of rollouts """
         assert len(paths) > 0, "Adding empty rollout"
+        self.new_path_len = len(paths)
         self.paths.extend(paths)
         if len(self.paths) > self._max_size:
             print("###########################")
@@ -272,3 +284,4 @@ class ReplayBuffer(object):
         self._terminals = None
         self._num_paths = 0
         self._num_data = 0
+        self._new_path_len = 0
