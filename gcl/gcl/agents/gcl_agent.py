@@ -11,6 +11,7 @@ from .base_agent import BaseAgent
 from .mlp_reward import MLPReward
 from gcl.scripts.replay_buffer import ReplayBuffer
 from gcl.scripts.utils import PathDict, normalize
+import gcl.scripts.pytorch_util as ptu
 
 
 class GCL_Agent(BaseAgent, metaclass=ABCMeta):
@@ -52,7 +53,7 @@ class GCL_Agent(BaseAgent, metaclass=ABCMeta):
             self.agent_params['output_size'],
             learning_rate=self.agent_params['learning_rate']
         )
-
+        print("Agent", ptu.device)
         # Replay buffers: demo holds expert demonstrations and sample holds policy samples
         self.demo_buffer = ReplayBuffer(1_000_000)
         self.sample_buffer = ReplayBuffer(1_000_000)
@@ -75,6 +76,7 @@ class GCL_Agent(BaseAgent, metaclass=ABCMeta):
                 "samp_buffer": self.sample_buffer,
                 "actor": self.actor,
                 "reward": self.reward,
+
             }, PATH
         )
 
