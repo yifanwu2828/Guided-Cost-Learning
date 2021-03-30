@@ -17,9 +17,6 @@ from utils import PathDict
 from gcl.agents.base_policy import BasePolicy
 from logger import Logger
 
-# set overflow warning to error instead
-np.seterr(all='raise')
-torch.autograd.set_detect_anomaly(True)
 
 # how many rollouts to save as videos to tensorboard
 MAX_NVIDEO = 2
