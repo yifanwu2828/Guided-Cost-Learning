@@ -83,7 +83,7 @@ def sample_trajectory(env,
                       agent,
                       max_path_length: int,
                       render=False, render_mode: str = 'rgb_array',
-                      expert=False, evaluate=False
+                      expert=False, evaluate=False, device='cpu',
                       ) -> PathDict:
     """
     Sample a single trajectory and returns infos
@@ -95,10 +95,12 @@ def sample_trajectory(env,
     :param render_mode: 'human' or 'rgb_array'
     :param expert: sample from expert policy if True
     :param evaluate:
+    :param device: 'cpu' or 'cuda'
     :return: PathDict
     """
     assert isinstance(max_path_length, int)
     assert max_path_length >= 0
+
     # initialize env for the beginning of a new rollout
     ob = env.reset()
 
@@ -153,8 +155,14 @@ def sample_trajectory(env,
             rewards.append(rew)
         else:
             # not running on gpu which is slow
-            rewards.append(agent.reward.forward(torch.from_numpy(ob).float(),
-                                                torch.from_numpy(ac).float()).detach().numpy())
+            rewards.append(
+
+                agent.reward(
+                        observation=torch.from_numpy(ob).float().to(device),
+                        action=torch.from_numpy(ac).float().to(device),
+                ).to('cpu').detach().numpy()
+
+            )
 
         # end the rollout if (rollout can end due to done, or due to max_path_length)
         rollout_done = 0
@@ -173,7 +181,7 @@ def sample_trajectory(env,
 def sample_trajectories(env, policy, agent: BaseAgent,
                         min_timesteps_per_batch: int, max_path_length: int,
                         render=False, render_mode: str = 'rgb_array',
-                        expert=False, evaluate=False
+                        expert=False, evaluate=False, device='cpu',
                         ) -> Tuple[List[PathDict], int]:
     """
     Sample rollouts until we have collected batch_size trajectories
@@ -186,6 +194,7 @@ def sample_trajectories(env, policy, agent: BaseAgent,
     :param render_mode: 'human' or 'rgb_array'
     :param expert: sample from expert policy if True
     :param evaluate
+    :param device: 'cpu' or 'cuda'
     :return: List[PathDict], timesteps_this_batch
     """
     assert isinstance(min_timesteps_per_batch, int) and isinstance(max_path_length, int)
@@ -202,7 +211,8 @@ def sample_trajectories(env, policy, agent: BaseAgent,
             render=render,
             render_mode=render_mode,
             expert=expert,
-            evaluate=evaluate
+            evaluate=evaluate,
+            device=device,
         )
         paths.append(path)
         timesteps_this_batch += get_pathlength(path)
@@ -214,7 +224,7 @@ def sample_trajectories(env, policy, agent: BaseAgent,
 def sample_n_trajectories(env, policy, agent: BaseAgent,
                           ntrajs: int, max_path_length: int,
                           render=False, render_mode: str = 'rgb_array',
-                          expert=False, evaluate=False
+                          expert=False, evaluate=False, device='cpu',
                           ) -> List[PathDict]:
     """
     :param env: simulation environment
@@ -226,6 +236,7 @@ def sample_n_trajectories(env, policy, agent: BaseAgent,
     :param render_mode: 'human' or 'rgb_array'
     :param expert: sample from expert policy if True
     :param evaluate
+    :param device: 'cpu' or 'cuda'
     :return: List[PathDict]
     """
     assert isinstance(ntrajs, int) and isinstance(max_path_length, int)
@@ -233,7 +244,8 @@ def sample_n_trajectories(env, policy, agent: BaseAgent,
     ntraj_paths: List[PathDict] = [sample_trajectory(env, policy, agent,
                                                      max_path_length,
                                                      render=render, render_mode=render_mode,
-                                                     expert=expert, evaluate=evaluate
+                                                     expert=expert, evaluate=evaluate,
+                                                     device=device,
                                                      ) for _ in range(ntrajs)
                                    ]
     return ntraj_paths
