@@ -191,9 +191,13 @@ if __name__ == '__main__':
                 # print(Z[i, j].shape)
                 # print(Z[i, j])
 
-        reward_min, reward_max = np.min(Z), np.max(Z)
-        print(reward_min, reward_max)
-        Z = ((Z - reward_min) / (reward_max - reward_min) * 255).astype(np.uint8)
+        scaler = preprocessing.MinMaxScaler(feature_range=(-1, 0))
+        scaler.fit(Z)
+        Z = (scaler.transform(Z) * 255).astype(np.uint8)
+
+        # reward_min, reward_max = np.min(Z), np.max(Z)
+        # print(reward_min, reward_max)
+        # Z = ((Z - reward_min) / (reward_max - reward_min) * 255).astype(np.uint8)
         # print(Z)
         reward_map = Z  # np.stack((Z, Z, Z), axis=-1)
         plt.imshow(reward_map, cmap='gray', vmin=0, vmax=255)
@@ -222,8 +226,7 @@ if __name__ == '__main__':
 
             while not done:
                 action, log_prob = policy_model.get_action(obs)
-                action = action[0]
-                obs, reward, done, info = eval_env.step(action)
+                obs, reward, done, info = eval_env.step(action[0])
                 episode_rewards.append(reward)
                 episode_len += 1
                 eval_env.render()
