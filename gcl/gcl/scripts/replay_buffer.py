@@ -15,7 +15,9 @@ class ReplayBuffer(object):
         self._num_paths: int = 0
         self._num_data: int = 0
 
+        # record size and length of new add paths
         self._new_path_len: int = 0
+        self._new_data_len: int = 0
 
         # store (concatenated) component arrays from each rollout
         self._obs = None
@@ -47,6 +49,15 @@ class ReplayBuffer(object):
     def new_path_len(self, value):
         assert isinstance(value, int)
         self._new_path_len = value
+
+    @property
+    def new_data_len(self) -> int:
+        return self._new_data_len
+
+    @new_data_len.setter
+    def new_data_len(self, value):
+        assert isinstance(value, int)
+        self._new_data_len = value
 
     @property
     def num_paths(self) -> int:
@@ -136,7 +147,7 @@ class ReplayBuffer(object):
         return len(self.paths)
 
     def __repr__(self) -> str:
-        return f"ReplayBuffer: ({self._num_paths}, {self._num_data})"
+        return f"{self.__class__.__name__}: ({self._num_paths}, {self._num_data})"
 
     ##################################
     ##################################
@@ -144,12 +155,16 @@ class ReplayBuffer(object):
     def add_rollouts(self, paths: List[PathDict]) -> None:
         """ Add new rollouts into our list of rollouts """
         assert len(paths) > 0, "Adding empty rollout"
+
         self.new_path_len = len(paths)
+        self.new_data_len = int(np.sum([path['observation'].shape[0] for path in paths]))
+
         self.paths.extend(paths)
         if len(self.paths) > self._max_size:
             print("###########################")
             print(f"Exceed buffer max_size {self._max_size} by {len(self.paths) - self._max_size}, old path will be "
                   f"dropped")
+
         # if size exceed buffer's max size, drop old rollouts and keep new on instead
         self.paths = self.paths[-self._max_size:]
         self._num_paths = len(self.paths)
@@ -285,3 +300,4 @@ class ReplayBuffer(object):
         self._num_paths = 0
         self._num_data = 0
         self._new_path_len = 0
+        self._new_data_len = 0
