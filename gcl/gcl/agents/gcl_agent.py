@@ -54,15 +54,15 @@ class GCL_Agent(BaseAgent, metaclass=ABCMeta):
         )
 
         # Replay buffers: demo holds expert demonstrations and sample holds policy samples
-        self.demo_buffer = ReplayBuffer(1000000)
-        self.sample_buffer = ReplayBuffer(1000000)
-        self.background_buffer = ReplayBuffer(1000000)
+        self.demo_buffer = ReplayBuffer(1_000_000)
+        self.sample_buffer = ReplayBuffer(1_000_000)
+        self.background_buffer = ReplayBuffer(1_000_000)
 
     #####################################################
     #####################################################
 
     def __repr__(self) -> str:
-        return f"GCL_Agent"
+        return f"{self.__class__.__name__}"
 
     #####################################################
     #####################################################
