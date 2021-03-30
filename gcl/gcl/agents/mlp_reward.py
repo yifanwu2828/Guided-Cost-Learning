@@ -50,7 +50,7 @@ class MLPReward(nn.Module):
             ],
             lr=self.learning_rate
         )
-
+        print("MLP REW", ptu.device)
         # self.mlp.to(ptu.device)
 
     #####################################################

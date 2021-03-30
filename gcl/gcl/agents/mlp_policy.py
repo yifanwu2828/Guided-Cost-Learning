@@ -13,10 +13,6 @@ from gcl.scripts import utils
 from gcl.scripts import pytorch_util as ptu
 from gcl.agents.base_policy import BasePolicy
 
-# set overflow warning to error instead
-np.seterr(all='raise')
-torch.autograd.set_detect_anomaly(True)
-
 
 class MLPPolicy(BasePolicy, nn.Module, metaclass=abc.ABCMeta):
     """
@@ -148,6 +144,8 @@ class MLPPolicyPG(MLPPolicy):
         self.discrete = discrete
         # Init baseline_loss
         self.baseline_loss = nn.MSELoss()
+        print("MLPPolicy", ptu.device)
+
 
     def __repr__(self):
         return f"{self.__class__.__name__}"
