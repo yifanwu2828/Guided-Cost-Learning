@@ -7,9 +7,12 @@ import torch
 import matplotlib.pyplot as plt
 import gym
 import gym_nav
+from tqdm import tqdm
+
 from gcl_trainer import GCL_Trainer
 from gcl.agents.gcl_agent import GCL_Agent
 from utils import tic, toc
+import pytorch_util as ptu
 
 
 class IRL_Trainer(object):
@@ -75,7 +78,7 @@ def removeOutliers(x, outlierConstant=1.5) -> list:
 if __name__ == '__main__':
     print(torch.__version__)
     # set overflow warning to error instead
-    np.seterr(all='raise')
+    # np.seterr(all='raise')
     torch.backends.cudnn.benchmark = True
 
     parser = argparse.ArgumentParser()
@@ -172,7 +175,7 @@ if __name__ == '__main__':
 
     '''Outer Training Loop (Algorithm 1: Guided cost learning)'''
     # Number of iteration of outer training loop (Algorithm 1)
-    params['n_iter'] = 300  # sweet spot
+    params['n_iter'] = 400  # sweet spot 400
     # Number of expert rollouts to add to demo replay buffer before outer loop
     params['demo_size'] = 200
     # number of current policy rollouts add to sample buffer per itr in outer training loop
@@ -180,18 +183,18 @@ if __name__ == '__main__':
 
     ''' Train Reward (Algorithm 2) '''
     # Number of reward updates per iteration in Algorithm 2
-    params["num_reward_train_steps_per_iter"] = 10  # K_r
+    params["num_reward_train_steps_per_iter"] = 10  # 10 K_r
     # Number of expert rollouts to sample from replay buffer per reward update
     params["train_demo_batch_size"] = 100
     # Number of policy rollouts to sample from replay buffer per reward update '''sample recent?'''
-    params["train_sample_batch_size"] = 100
+    params["train_sample_batch_size"] = 100  # 100
 
 
     ''' Train Policy (Policy Gradient) '''
     # Number of policy updates per iteration
     params["num_policy_train_steps_per_iter"] = 1  # K_p
     # Number of transition steps to sample from sample replay buffer per policy update
-    params["train_batch_size"] = 10_000
+    params["train_batch_size"] = 10_000  # 10_000
 
 
 
@@ -238,10 +241,24 @@ if __name__ == '__main__':
     # saving mlp Reward and Policy
     SAVE = True
     if SAVE:
-        fname1 = "test_gcl_reward.pth"
+        fname1 = "test_gcl_reward_GPU.pth"
         reward_model = trainer.gcl_trainer.agent.reward
         torch.save(reward_model, fname1)
 
-        fname2 = "test_gcl_policy.pth"
+        fname2 = "test_gcl_policy_GPU.pth"
         policy_model = trainer.gcl_trainer.agent.actor
         torch.save(policy_model, fname2)
+
+    # Init ENV
+    env = gym.make('NavEnv-v0')
+    env.seed(0)
+    #######################################################################################
+    obs = env.reset()
+    n_step = range(500)
+    for t in tqdm(n_step):
+        action, _logprob = trainer.gcl_trainer.agent.actor.get_action(obs)
+        obs, reward, done, info = env.step(action[0])
+        env.render()
+        if done:
+            obs = env.reset()
+    env.close()
