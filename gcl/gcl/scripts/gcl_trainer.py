@@ -2,6 +2,7 @@ import pickle
 import time
 from functools import lru_cache
 from collections import OrderedDict
+import itertools
 from typing import List, Optional, Tuple, Dict, Sequence, Any
 
 import gym
@@ -140,7 +141,7 @@ class GCL_Trainer(object):
         self.agent.add_to_buffer(demo_paths, demo=True)
         print(f'\nNum of Demo rollouts collected:{self.agent.demo_buffer.num_paths}')
         print(f'Num of Demo transition steps collected:{self.agent.demo_buffer.num_data}')
-        utils.toc(self.start_time, "Finish Loading Expert Demonstrations")
+        utils.toc(self.start_time, "Finish Loading Expert Demonstrations", ftime=True)
 
         #####################################################################
         # 2.
@@ -202,12 +203,13 @@ class GCL_Trainer(object):
             #     if self.params['save_params']:
             #         self.agent.save(f"{self.params['logdir']}/agent_itr_{itr}.pt")
 
-            for r in reward_logs:
-                reward_loss = float(r['Training_Reward_Loss'])
-                train_log_lst.append(reward_loss)
-            for p in policy_logs:
-                policy_loss = float(p["Training_Policy_Loss"])
-                policy_log_lst.append(policy_loss)
+            for r, p in itertools.zip_longest(reward_logs, policy_logs):
+                if r:
+                    reward_loss = float(r['Training_Reward_Loss'])
+                    train_log_lst.append(reward_loss)
+                if p:
+                    policy_loss = float(p["Training_Policy_Loss"])
+                    policy_log_lst.append(policy_loss)
 
             # update progress bar
             n_iter_loop.set_postfix()
@@ -468,22 +470,21 @@ class GCL_Trainer(object):
         if demo:
             demo_paths_len = len(self.agent.demo_buffer)
             demo_data_len = self.agent.demo_buffer.num_data
-            print(f"{'Demo_buffer_size:': <20} {demo_paths_len}, {demo_data_len}"
-                  f"{'-> Average Demo ep_len:': ^25} {demo_data_len / demo_paths_len:>10.2f}")
+            print(f"{'Demo_buffer_size:': <20} {demo_data_len} , {demo_paths_len}"
+                  f"\t{'-> Average Demo ep_len:': ^25} {demo_data_len / demo_paths_len:>10.2f}")
         if samp:
             samp_paths_len = len(self.agent.sample_buffer)
             samp_data_len = self.agent.sample_buffer.num_data
             samp_new_paths_len = self.agent.sample_buffer.new_path_len
             samp_new_data_len = self.agent.sample_buffer.new_data_len
-            print(f"{'Sample_buffer_size:': <20} {samp_paths_len}, {samp_data_len}"
-                  f" {'-> Average Samp ep_len:': ^25} {samp_data_len / samp_paths_len:>10.2f}"
-                  f"\t\tSamp_new_rollouts_ep_len: {samp_new_data_len /samp_new_paths_len :>10.2f}")
+            print(f"{'Sample_buffer_size:': <20} {samp_data_len} , {samp_paths_len}, "
+                  f"\t-> Average Samp_new_rollouts_ep_len: {samp_new_data_len /samp_new_paths_len :>10.2f}")
         if background:
             back_paths_len = len(self.agent.background_buffer)
             back_data_len = self.agent.background_buffer.num_data
             if back_paths_len == back_data_len == 0:
                 print(f"Back_buffer_size: {len(self.agent.background_buffer)}, {self.agent.background_buffer.num_data}")
             else:
-                print(f"Back_buffer_size: {len(self.agent.background_buffer)}, {self.agent.background_buffer.num_data}"
+                print(f"Back_buffer_size: {self.agent.background_buffer.num_data} / {len(self.agent.background_buffer)}"
                       f"\tAverage ep_len: {back_data_len / back_paths_len :.2f} ")
         print("##########################################################################")
