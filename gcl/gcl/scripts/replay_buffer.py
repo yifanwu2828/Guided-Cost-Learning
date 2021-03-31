@@ -42,24 +42,6 @@ class ReplayBuffer(object):
         self._paths = value
 
     @property
-    def new_path_len(self) -> int:
-        return self._new_path_len
-
-    @new_path_len.setter
-    def new_path_len(self, value):
-        assert isinstance(value, int)
-        self._new_path_len = value
-
-    @property
-    def new_data_len(self) -> int:
-        return self._new_data_len
-
-    @new_data_len.setter
-    def new_data_len(self, value):
-        assert isinstance(value, int)
-        self._new_data_len = value
-
-    @property
     def num_paths(self) -> int:
         return self._num_paths
 
@@ -77,6 +59,28 @@ class ReplayBuffer(object):
         assert isinstance(new_size, int)
         self._num_data = new_size
 
+    ##################################
+    # New Paths
+    @property
+    def new_path_len(self) -> int:
+        return self._new_path_len
+
+    @new_path_len.setter
+    def new_path_len(self, value):
+        assert isinstance(value, int)
+        self._new_path_len = value
+
+    @property
+    def new_data_len(self) -> int:
+        return self._new_data_len
+
+    @new_data_len.setter
+    def new_data_len(self, value):
+        assert isinstance(value, int)
+        self._new_data_len = value
+
+    ##################################
+    # Path info
     @property
     def obs(self):
         return self._obs
@@ -195,7 +199,8 @@ class ReplayBuffer(object):
                 self._unconcatenated_rews += unconcatenated_rews
             else:
                 self._unconcatenated_rews.append(unconcatenated_rews)
-        self._num_data = self._obs.shape[0]
+        # update total num of data in buffer
+        self._num_data += self._obs.shape[0]
 
     ########################################
     ########################################
