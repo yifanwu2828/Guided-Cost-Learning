@@ -82,7 +82,7 @@ class MLPReward(nn.Module):
         y = self.mlp(observation)
         z = torch.matmul(y, self.A) + self.b
         cost = (z * z).sum(-1) + self.w * (action * action).sum(-1)
-        assert self.w.item() >= 0
+        # assert self.w.item() >= 0
         # reward = - torch.sigmoid(cost)
         reward = - cost
         # print(reward)
