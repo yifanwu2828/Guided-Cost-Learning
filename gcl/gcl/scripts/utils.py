@@ -1,5 +1,5 @@
 from typing_extensions import TypedDict
-from typing import Tuple, List, Union
+from typing import Tuple, List, Union, Optional
 import time
 import numpy as np
 import torch
@@ -21,7 +21,7 @@ class PathDict(TypedDict):
 
 ############################################
 ############################################
-def tic(message=None):
+def tic(message: Optional[str] = None) -> float:
     """ Timing Function """
     if message:
         print(message)
@@ -32,9 +32,15 @@ def tic(message=None):
 
 ############################################
 ############################################
-def toc(t_start, name="Operation") -> None:
+def toc(t_start: float, name: Optional[str] = "Operation", ftime=False) -> None:
     """ Timing Function """
-    print(f'\n############ {name} took: {(time.time() - t_start):.4f} sec. ############\n')
+    assert isinstance(t_start, float)
+    sec: float = time.time() - t_start
+    if ftime:
+        duration = time.strftime("%H:%M:%S", time.gmtime(sec))
+        print(f'\n############ {name} took: {str(duration)} ############\n')
+    else:
+        print(f'\n############ {name} took: {sec:.4f} sec. ############\n')
 
 
 ########################################################################################
