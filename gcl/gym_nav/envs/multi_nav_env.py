@@ -217,7 +217,7 @@ class MultiNavEnv(gym.Env):
         num = self.obs_dim
         x = np.linspace(-self.size, self.size, num=num)
         y = np.linspace(-self.size, self.size, num=num)
-        
+
         X, Y = np.meshgrid(x, y)
         Z = np.zeros((num, num))
         for i in range(num):
