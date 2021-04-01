@@ -58,6 +58,7 @@ class GCL_Agent(BaseAgent, metaclass=ABCMeta):
         self.demo_buffer = ReplayBuffer(1_000_000)
         self.sample_buffer = ReplayBuffer(1_000_000)
         self.background_buffer = ReplayBuffer(1_000_000)
+        self.test_buffer = ReplayBuffer(1_000_000)
 
     #####################################################
     #####################################################
