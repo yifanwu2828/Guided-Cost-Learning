@@ -238,6 +238,14 @@ class GCL_Trainer(object):
                     policy_loss = float(p["Training_Policy_Loss"])
                     policy_log_lst.append(policy_loss)
 
+            save_itr = [500, 550, 600, 650]
+            if itr in save_itr:
+                fname1 = f"test_gcl_reward_{itr}.pth"
+                reward_model = self.agent.reward
+                torch.save(reward_model, fname1)
+                fname2 = f"test_gcl_policy_{itr}.pth"
+                policy_model = self.agent.actor
+                torch.save(policy_model, fname2)
             # update progress bar
             n_iter_loop.set_postfix()
         return train_log_lst, policy_log_lst
