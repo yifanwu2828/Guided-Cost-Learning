@@ -4,6 +4,7 @@ from functools import lru_cache
 from collections import OrderedDict
 import itertools
 from typing import List, Optional, Tuple, Dict, Sequence, Any
+import copy
 
 import gym
 import gym_nav
@@ -17,7 +18,6 @@ import utils
 from utils import PathDict
 from gcl.agents.base_policy import BasePolicy
 from logger import Logger
-
 
 # how many rollouts to save as videos to tensorboard
 MAX_NVIDEO = 2
@@ -103,6 +103,7 @@ class GCL_Trainer(object):
         #############
         agent_class = self.params['agent_class']
         self.agent = agent_class(self.env, self.params['agent_params'])
+        self.test_agent = None
 
     ##################################
 
@@ -183,6 +184,24 @@ class GCL_Trainer(object):
             # show status
             self.buffer_status(demo=True, samp=True)
 
+            # # testing
+            # if itr == 240:
+            #     self.test_agent = copy.deepcopy(self.agent)
+            #     for idx in tqdm(range(200)):
+            #         with torch.no_grad():
+            #             test_returns = self.collect_training_trajectories(
+            #                 collect_policy=self.test_agent.actor,
+            #                 batch_size=self.params["train_batch_size"]
+            #             )
+            #         test_paths, envsteps_this_batch, _ = test_returns
+            #         self.test_agent.test_buffer.add_rollouts(test_paths)
+            #         policy_logs = self.perform_pg2opt()
+            #         self.show_logs(idx, envsteps_this_batch,
+            #                        test_paths,
+            #                        [0], policy_logs,
+            #                        logging=False
+            #                        )
+
             # 5. Use D_{samp} to update cost c_{\theta}
             rew_start_time = time.time()
             reward_logs = self.train_reward()  # Algorithm 2
@@ -192,6 +211,14 @@ class GCL_Trainer(object):
             ply_start_time = time.time()
             policy_logs = self.train_policy()
             # utils.toc(rew_start_time, "Update Policy")
+
+            # log
+            # print('\nBeginning logging procedure...')
+            self.show_logs(itr, self.total_envsteps,
+                           samp_paths,
+                           reward_logs, policy_logs,
+                           logging=True
+                           )
 
             # # log/save
             # if self.log_video or self.log_metrics:
@@ -372,8 +399,8 @@ class GCL_Trainer(object):
     def perform_logging(self, itr: int, train_paths: List[PathDict],
                         eval_policy: BasePolicy,
                         train_video_paths: List[PathDict],
-                        reward_logs: list, policy_logs: list
-                        ) -> None:
+                        reward_logs: list, policy_logs: list,
+                        verbose=True) -> None:
         """
         Log metrics and Record Video
         :param itr:
@@ -382,6 +409,7 @@ class GCL_Trainer(object):
         :param train_video_paths: trajs to record as video
         :param reward_logs: list of train logs  containing training_reward_loss
         :param policy_logs: list of policy logs containing training_policy_loss
+        :param verbose: show metrics
         """
 
         last_reward_log = reward_logs[-1]
@@ -428,36 +456,49 @@ class GCL_Trainer(object):
             eval_ep_lens = [len(eval_path["reward"]) for eval_path in eval_paths]
 
             # decide what to log
-            '''here eval are viewing True Reward, train viewing MLP Reward'''
-            logs = OrderedDict()
-            logs["Eval_AverageReturn"] = np.mean(eval_returns)
-            logs["Eval_StdReturn"] = np.std(eval_returns)
-            logs["Eval_MaxReturn"] = np.max(eval_returns)
-            logs["Eval_MinReturn"] = np.min(eval_returns)
-            logs["Eval_AverageEpLen"] = np.mean(eval_ep_lens)
+            '''Here eval are viewing True Reward, train viewing MLP Reward'''
+            eval_logs = OrderedDict()
+            eval_logs["Eval_AverageReturn"] = np.mean(eval_returns)
+            eval_logs["Eval_StdReturn"] = np.std(eval_returns)
+            eval_logs["Eval_MaxReturn"] = np.max(eval_returns)
+            eval_logs["Eval_MinReturn"] = np.min(eval_returns)
+            eval_logs["Eval_AverageEpLen"] = np.mean(eval_ep_lens)
 
-            logs["Train_AverageReturn"] = np.mean(train_returns)
-            logs["Train_StdReturn"] = np.std(train_returns)
-            logs["Train_MaxReturn"] = np.max(train_returns)
-            logs["Train_MinReturn"] = np.min(train_returns)
-            logs["Train_AverageEpLen"] = np.mean(train_ep_lens)
+            training_logs = OrderedDict()
+            training_logs["Train_AverageReturn"] = np.mean(train_returns)
+            training_logs["Train_StdReturn"] = np.std(train_returns)
+            training_logs["Train_MaxReturn"] = np.max(train_returns)
+            training_logs["Train_MinReturn"] = np.min(train_returns)
+            training_logs["Train_AverageEpLen"] = np.mean(train_ep_lens)
 
-            logs["Train_EnvstepsSoFar"] = self.total_envsteps
-            logs["TimeSinceStart"] = time.time() - self.start_time
-            logs.update(last_policy_log)
-            logs.update(last_reward_log)
+            training_logs["Train_EnvstepsSoFar"] = self.total_envsteps
+            training_logs["TimeSinceStart"] = time.time() - self.start_time
+            training_logs.update(last_policy_log)
+            training_logs.update(last_reward_log)
 
             if itr == 0:
                 self.initial_return = np.mean(train_returns)
-            logs["Initial_DataCollection_AverageReturn"] = self.initial_return
+            training_logs["Initial_DataCollection_AverageReturn"] = self.initial_return
 
             # perform the logging
+
             print("\n---------------------------------------------------")
-            for key, value in logs.items():
-                if isinstance(value, str):
-                    print(f'|\t{key:<20} | {value:>10} |')
-                else:
-                    print(f'|\t{key:<20} | {value:>10.3f} |')
+            '''eval_logs'''
+            for key, value in eval_logs.items():
+                if verbose:
+                    if isinstance(value, str):
+                        print(f'|\t{key:<20} | {value:>10} |')
+                    else:
+                        print(f'|\t{key:<20} | {value:>10.3f} |')
+                self.logger.log_scalar(value, key, itr)
+            '''training_logs'''
+            print("|------------------------|")
+            for key, value in training_logs.items():
+                if verbose:
+                    if isinstance(value, str):
+                        print(f'|\t{key:<20} | {value:>10} |')
+                    else:
+                        print(f'|\t{key:<20} | {value:>10.3f} |')
                 self.logger.log_scalar(value, key, itr)
             print("---------------------------------------------------")
 
@@ -470,15 +511,15 @@ class GCL_Trainer(object):
         if demo:
             demo_paths_len = len(self.agent.demo_buffer)
             demo_data_len = self.agent.demo_buffer.num_data
-            print(f"{'Demo_buffer_size:': <20} {demo_data_len} , {demo_paths_len}"
+            print(f"{'Demo_buffer_size:': <20} {demo_paths_len}, {demo_data_len}"
                   f"\t{'-> Average Demo ep_len:': ^25} {demo_data_len / demo_paths_len:>10.2f}")
         if samp:
             samp_paths_len = len(self.agent.sample_buffer)
             samp_data_len = self.agent.sample_buffer.num_data
             samp_new_paths_len = self.agent.sample_buffer.new_path_len
             samp_new_data_len = self.agent.sample_buffer.new_data_len
-            print(f"{'Sample_buffer_size:': <20} {samp_data_len} , {samp_paths_len}, "
-                  f"\t-> Average Samp_new_rollouts_ep_len: {samp_new_data_len /samp_new_paths_len :>10.2f}")
+            print(f"{'Sample_buffer_size:': <20} {samp_data_len}, {samp_paths_len}, "
+                  f"\t-> Average Samp_new_rollouts_ep_len: {samp_new_data_len / samp_new_paths_len :>10.2f}")
         if background:
             back_paths_len = len(self.agent.background_buffer)
             back_data_len = self.agent.background_buffer.num_data
@@ -488,3 +529,53 @@ class GCL_Trainer(object):
                 print(f"Back_buffer_size: {self.agent.background_buffer.num_data} / {len(self.agent.background_buffer)}"
                       f"\tAverage ep_len: {back_data_len / back_paths_len :.2f} ")
         print("##########################################################################")
+
+    ##########################################################################
+    def show_logs(self, itr: int, total_envsteps: int,
+                  train_paths: List[PathDict],
+                  reward_logs: list, policy_logs: list,
+                  verbose=True, logging=False
+                  ) -> None:
+        # last_reward_log = reward_logs[-1]
+        last_policy_log = policy_logs[-1]
+
+        # episode lengths, for logging
+        train_returns = [path["reward"].sum() for path in train_paths]
+        train_ep_lens = [len(path["reward"]) for path in train_paths]
+
+        training_logs = OrderedDict()
+        training_logs["Train_AverageReturn"] = np.mean(train_returns)
+        training_logs["Train_StdReturn"] = np.std(train_returns)
+        training_logs["Train_MaxReturn"] = np.max(train_returns)
+        training_logs["Train_MinReturn"] = np.min(train_returns)
+        training_logs["Train_AverageEpLen"] = np.mean(train_ep_lens)
+        training_logs["Train_EnvstepsSoFar"] = total_envsteps
+        training_logs.update(last_policy_log)
+        # training_logs.update(last_reward_log)
+        '''training_logs'''
+        print("|------------------------|")
+        for key, value in training_logs.items():
+            if verbose:
+                if isinstance(value, str):
+                    print(f'|\t{key:<20} | {value:>10} |')
+                else:
+                    print(f'|\t{key:<20} | {value:>10.3f} |')
+            if logging:
+                pass
+                # self.logger.log_scalar(value, key, itr)
+        print("---------------------------------------------------")
+        self.logger.flush()
+
+    def perform_pg2opt(self):
+        print('\nTraining agent using sampled data from replay buffer...')
+        train_policy_logs = []
+
+        K_test_policy_loop = range(self.params['num_policy_train_steps_per_iter'])
+        for k in K_test_policy_loop:
+            ob_batch, ac_batch, re_batch, next_ob_batch, terminal_batch = self.test_agent.test_buffer. \
+                sample_recent_data(self.params['train_batch_size'], concat_rew=False)
+
+            policy_loss: dict = self.test_agent.train_policy(ob_batch, ac_batch, re_batch,
+                                                             next_ob_batch, terminal_batch)
+            train_policy_logs.append(policy_loss)
+        return train_policy_logs
