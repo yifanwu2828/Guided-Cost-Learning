@@ -13,7 +13,7 @@ class NavEnv(gym.Env):
 
     metadata = {'render.modes': ['human', 'rgb_array']}
 
-    def __init__(self, size=1, seed=1337):
+    def __init__(self, size=1, seed=1337, multiplayer=1):
 
         # the box size is (2*size, 2*size)
         self.size = size
@@ -33,13 +33,6 @@ class NavEnv(gym.Env):
             dtype="float32"
         )
 
-        #        # Observations are the 2D reward image and the agent position
-        #        self.observation_space = spaces.Box(
-        #            low=0,
-        #            high=255,
-        #            shape=(self.obs_dim, self.obs_dim, 3),
-        #            dtype="uint8"
-        #        )
         # Observations are the position and velocity
         self.observation_space = spaces.Box(
             low=-self.size,
@@ -52,7 +45,7 @@ class NavEnv(gym.Env):
         self.window = None
 
         # Mission of the task
-        self.mission = 'Navigate to the origin'
+        self.mission: str = 'Navigate to the origin'
 
         # Initialize seed
         self.seed(seed=seed)
@@ -68,8 +61,6 @@ class NavEnv(gym.Env):
         self.step_count += 1
         self.update_states(action)
 
-        #        # Observation is the reward map with the agent position
-        #        obs = self.preprocess_obs(self.pos)
         # Observations are the position and velocity
         obs = np.concatenate((self.pos, self.vel))
         reward = self.eval_reward(self.pos)
