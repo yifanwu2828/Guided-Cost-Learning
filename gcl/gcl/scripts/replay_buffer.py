@@ -1,5 +1,7 @@
-import numpy as np
 from typing import List, Tuple, Union
+
+import numpy as np
+
 import gcl.scripts.utils as utils
 from gcl.scripts.utils import PathDict
 
