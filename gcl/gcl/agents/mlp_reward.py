@@ -1,10 +1,13 @@
 from typing import List
+import warnings
+
 import numpy as np
 import torch
 from torch import nn
 from torch import optim
 
 from gcl.scripts import pytorch_util as ptu
+warnings.filterwarnings('always')
 
 
 class MLPReward(nn.Module):
@@ -32,6 +35,7 @@ class MLPReward(nn.Module):
         )
         self.A = nn.Parameter(
             torch.ones(self.output_size, self.output_size, dtype=torch.float32, device=ptu.device)
+            # torch.eyes(self.output_size, dtype=torch.float32, device=ptu.device)
         )
         self.b = nn.Parameter(
             torch.ones(self.output_size, dtype=torch.float32, device=ptu.device)
@@ -82,10 +86,8 @@ class MLPReward(nn.Module):
         y = self.mlp(observation)
         z = torch.matmul(y, self.A) + self.b
         cost = (z * z).sum(-1) + self.w * (action * action).sum(-1)
-        # assert self.w.item() >= 0
-        # reward = - torch.sigmoid(cost)
         reward = - cost
-        # print(reward)
+
         return reward
 
     #####################################################
@@ -144,7 +146,9 @@ class MLPReward(nn.Module):
         x = sample_return - sum_log_probs
         weights = torch.exp(x - torch.logsumexp(x, -1))
         # weights should sum to 1
-        assert abs(weights.sum(-1).item() - 1) <= 1e-2
+        w = weights.sum(-1).item()
+        if abs(w - 1) > 1e-2:
+            warnings.warn(f'Sum of Weights larger than one:{w}')
 
         demo_loss = torch.mean(demo_return)
         sample_loss = torch.sum(weights * sample_return)
