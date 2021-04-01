@@ -33,26 +33,21 @@ if __name__ == '__main__':
     env.seed(SEED)
     #######################################################################################
     demo_obs, agent_obs = env.reset()
-    n_step = range(500)
+    n_step = range(5000)
     for t in tqdm(n_step):
         demo_action, _ = demo_model.predict(demo_obs, deterministic=True)
         agent_action, log_prob = policy_model.get_action(agent_obs)
         agent_action = agent_action[0]
-
-        # if demo_action[0] == agent_action[0] and demo_action[1] == agent_action[1]:
-        print(f"demo:{demo_action[0]}, {demo_action[1]}")
-        print(f"agent:{agent_action[0]}, {agent_action[1]}")
-
 
         obs, reward, done, info = env.step(demo_action, agent_action)
         demo_obs, agent_obs = obs
         demo_rew, agent_rew = reward
         demo_done, agent_done = done
         env.render()
-        done = any([demo_done, agent_done])
+        done = all([demo_done, agent_done])
         if done:
             demo_obs, agent_obs = env.reset()
-            time.sleep(0.05)
+            time.sleep(0.1)
     env.close()
 
     # env = gym.make("NavEnv-v0")

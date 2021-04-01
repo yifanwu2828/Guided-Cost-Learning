@@ -1,3 +1,5 @@
+from typing import List
+
 import gym
 from gym import error, spaces, utils
 from gym.utils import seeding
@@ -44,15 +46,17 @@ class MultiNavEnv(gym.Env):
         # Two player
 
         # pos
-        self.demo_pos = None
-        self.agent_pos = None
+        self.demo_pos: np.ndarray
+        self.agent_pos: np.ndarray
         # vel
         self.demo_vel = np.zeros(self.vel_dim)
-        self.agent_vel = np.zeros_like(self.demo_vel)
+        self.agent_vel = np.zeros(self.vel_dim)
         # steps
-        self.demo_step_count = None
-        self.agent_step_count = None
+        self.demo_step_count: int
+        self.agent_step_count: int
 
+        self.demo_trajs: List[np.ndarray] = []
+        self.agent_trajs: List[np.ndarray] = []
 
         # Window to use for human rendering mode
         self.window = None
@@ -83,7 +87,7 @@ class MultiNavEnv(gym.Env):
         # agent
         agent_obs = np.concatenate((self.agent_pos, self.agent_vel))
         agent_reward = self.eval_reward(self.agent_pos)
-        self.agent_pos_list.append(self.demo_pos.copy())
+        self.agent_pos_list.append(self.agent_pos.copy())
 
 
         demo_done, agent_done = False, False
@@ -105,14 +109,26 @@ class MultiNavEnv(gym.Env):
         Add the agent position to the reward map
         """
         obs = self.reward_map.copy()
-        demo_idx = ((demo_pos + self.size) / (2 * self.size) * (self.obs_dim - 1)).astype(int)
+        demo_idx0 = self.get_idx(demo_pos)
+        agent_idx0 = self.get_idx(agent_pos)
 
+        # traj
 
-        agent_idx = ((agent_pos + self.size) / (2 * self.size) * (self.obs_dim - 1)).astype(int)
+        # self.agent_pos_list
+        if len(self.demo_pos_list) >= 3:
+            demo_idx1=self.get_idx(self.demo_pos_list[-2])
+            demo_idx2=self.get_idx(self.demo_pos_list[-3])
+            obs[demo_idx1[0], demo_idx1[1]] = np.array([200, 0, 0])
+            obs[demo_idx2[0], demo_idx2[1]] = np.array([100, 0, 0])
+        if len(self.agent_pos_list) >= 3:
+            agent_idx1 = self.get_idx(self.agent_pos_list[-2])
+            agent_idx2 = self.get_idx(self.agent_pos_list[-3])
+            obs[agent_idx1[0], agent_idx1[1]] = np.array([0, 200, 0])
+            obs[agent_idx2[0], agent_idx2[1]] = np.array([0, 100, 0])
 
-        # Set the agent to be red
-        obs[demo_idx[0], demo_idx[1]] = np.array([255, 0, 0])
-        obs[agent_idx[0], agent_idx[1]] = np.array([0, 255, 0])
+        # Set the demo to be red, agent to be green
+        obs[demo_idx0[0], demo_idx0[1]] = np.array([255, 0, 0])
+        obs[agent_idx0[0], agent_idx0[1]] = np.array([0, 255, 0])
         # if demo_idx[0] == agent_idx[0] and demo_idx[1] == agent_idx[1]:
         #     print("True")
         return obs
@@ -123,9 +139,13 @@ class MultiNavEnv(gym.Env):
         x = x + x' * dt, x' = x' + u * dt
         Force the position and velocity within bounds
         """
+        assert not np.allclose(demo_action,  agent_action)
 
+        # print(np.allclose(self.demo_vel, self.agent_vel))
         self.demo_pos += self.demo_vel * self.dt
         self.demo_vel += demo_action * self.dt
+
+
         self.demo_pos[self.demo_pos > self.size] = self.size
         self.demo_pos[self.demo_pos < -self.size] = -self.size
         self.demo_vel[self.demo_vel > self.size] = self.size
@@ -138,6 +158,8 @@ class MultiNavEnv(gym.Env):
         self.agent_vel[self.agent_vel > self.size] = self.size
         self.agent_vel[self.agent_vel < -self.size] = -self.size
 
+
+
     def reset(self):
         """
         Randomly spawn a starting location
@@ -148,7 +170,7 @@ class MultiNavEnv(gym.Env):
             high=self.size,
             size=self.pos_dim
         )
-        self.agent_pos = self.demo_pos
+        self.agent_pos = self.demo_pos.copy()
 
 
         self.demo_vel = np.zeros(self.vel_dim)
@@ -167,6 +189,9 @@ class MultiNavEnv(gym.Env):
         # Observations are the position and velocity
         demo_obs = np.concatenate((self.demo_pos, self.demo_vel))
         agent_obs = np.concatenate((self.agent_pos, self.agent_vel))
+
+        assert np.allclose(demo_obs, agent_obs)
+
         return demo_obs, agent_obs
 
     def render(self, mode='human'):
@@ -183,7 +208,7 @@ class MultiNavEnv(gym.Env):
 
         if mode == 'human':
             self.window.show_img(img)
-            self.window.set_caption(self.mission)
+            self.window.set_caption(self.mission + "Demo: red, Agent: green")
 
         elif mode == 'rgb_array':
             return img
@@ -256,3 +281,7 @@ class MultiNavEnv(gym.Env):
     def terminate_condition(pos):
         x, y = pos
         return abs(x) <= 1e-2 and abs(y) <= 1e-2
+
+    def get_idx(self, pos):
+        idx = ((pos + self.size) / (2 * self.size) * (self.obs_dim - 1)).astype(int)
+        return idx
