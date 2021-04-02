@@ -111,6 +111,15 @@ class GCL_Trainer(object):
         return f"{self.__class__.__name__}"
 
     ##################################
+    @staticmethod
+    def save_checkpoint(state, PATH: str = 'my_checkpoint.pth'):
+        """Saving Checkpoints"""
+        print(f"\n => Saving Checkpoint")
+        torch.save(state, PATH)
+
+    def load_checkpoint(self, checkpoint: str):
+        print(f"\n => Loading Checkpoint")
+        self.agent.load(checkpoint)
 
     ############################################################################################
     def run_training_loop(self, n_iter: int,
@@ -238,7 +247,7 @@ class GCL_Trainer(object):
                     policy_loss = float(p["Training_Policy_Loss"])
                     policy_log_lst.append(policy_loss)
 
-            save_itr = [500, 550, 600, 650]
+            save_itr = [100, 125, 150, 200, 250, 300, 350, 400]
             if itr in save_itr:
                 fname1 = f"test_gcl_reward_{itr}.pth"
                 reward_model = self.agent.reward
@@ -544,8 +553,8 @@ class GCL_Trainer(object):
                   reward_logs: list, policy_logs: list,
                   verbose=True, logging=False
                   ) -> None:
-        # last_reward_log = reward_logs[-1]
         last_policy_log = policy_logs[-1]
+        last_reward_log = reward_logs[-1]
 
         # episode lengths, for logging
         train_returns = [path["reward"].sum() for path in train_paths]
@@ -559,7 +568,7 @@ class GCL_Trainer(object):
         training_logs["Train_AverageEpLen"] = np.mean(train_ep_lens)
         training_logs["Train_EnvstepsSoFar"] = total_envsteps
         training_logs.update(last_policy_log)
-        # training_logs.update(last_reward_log)
+        training_logs.update(last_reward_log)
         '''training_logs'''
         print("|------------------------|")
         for key, value in training_logs.items():
@@ -572,7 +581,7 @@ class GCL_Trainer(object):
                 pass
                 # self.logger.log_scalar(value, key, itr)
         print("---------------------------------------------------")
-        self.logger.flush()
+        # self.logger.flush()
 
     def perform_pg2opt(self):
         print('\nTraining agent using sampled data from replay buffer...')
