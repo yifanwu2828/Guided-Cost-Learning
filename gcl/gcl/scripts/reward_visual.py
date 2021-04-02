@@ -8,6 +8,7 @@ import gym_nav
 from stable_baselines3 import PPO
 from tqdm import tqdm
 import pickle
+import time
 
 from utils import tic, toc
 
@@ -40,11 +41,11 @@ if __name__ == '__main__':
     #######################################################################################
     # load model
     start_load = tic("############ Load Model ############")
-    fname1 = "test_gcl_reward.pth"
+    fname1 = "test_gcl_reward_200.pth"
     reward_model = torch.load(fname1)
     reward_model.eval()
 
-    fname2 = "test_gcl_policy.pth"
+    fname2 = "test_gcl_policy_200.pth"
     policy_model = torch.load(fname2)
     policy_model.eval()
 
@@ -80,7 +81,7 @@ if __name__ == '__main__':
         mlp_reward = np.array(reward_log_dict["mlp_reward"])
         true_reward = np.array(reward_log_dict["true_reward"])
 
-        scaler = preprocessing.MinMaxScaler(feature_range=(-1, 0))
+        scaler = preprocessing.MinMaxScaler(feature_range=(-10, 0))
         scaler.fit(mlp_reward.reshape(-1, 1))
         scaled_reward = scaler.transform(mlp_reward.reshape(-1, 1))
         f, ax = plt.subplots()
@@ -137,7 +138,7 @@ if __name__ == '__main__':
         mlp_reward = np.array(reward_log_dict2["mlp_reward"])
         true_reward = np.array(reward_log_dict2["true_reward"])
 
-        scaler = preprocessing.MinMaxScaler(feature_range=(-1, 0))
+        scaler = preprocessing.MinMaxScaler(feature_range=(-10, 0))
         scaler.fit(mlp_reward.reshape(-1, 1))
         scaled_reward = scaler.transform(mlp_reward.reshape(-1, 1))
         f, ax = plt.subplots()
@@ -191,7 +192,7 @@ if __name__ == '__main__':
                 # print(Z[i, j].shape)
                 # print(Z[i, j])
 
-        scaler = preprocessing.MinMaxScaler(feature_range=(-1, 0))
+        scaler = preprocessing.MinMaxScaler(feature_range=(-10, 0))
         scaler.fit(Z)
         Z = (scaler.transform(Z) * 255).astype(np.uint8)
 
@@ -230,6 +231,7 @@ if __name__ == '__main__':
                 episode_rewards.append(reward)
                 episode_len += 1
                 eval_env.render()
+                time.sleep(0.1)
 
             all_episode_rewards.append(sum(episode_rewards))
             all_episode_len.append(episode_len)
