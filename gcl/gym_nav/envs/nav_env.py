@@ -67,7 +67,7 @@ class NavEnv(gym.Env):
         self.pos_list.append(self.pos.copy())
 
         done = False
-        done_cond = abs(self.pos[0]) <= 1e-2 and abs(self.pos[1]) <= 1e-2
+        done_cond = abs(self.pos[0]) <= 3e-2 and abs(self.pos[1]) <= 3e-2
         terminate_cond = (self.step_count >= self.max_steps)
         if done_cond or terminate_cond:
             done = True
@@ -81,6 +81,11 @@ class NavEnv(gym.Env):
         obs = self.reward_map.copy()
         agent_idx = ((agent_pos + self.size) / (2 * self.size) * (self.obs_dim - 1)).astype(int)
 
+        if len(self.pos_list) >= 3:
+            agent_idx1 = self.get_idx(self.pos_list[-2])
+            agent_idx2 = self.get_idx(self.pos_list[-3])
+            obs[agent_idx1[0], agent_idx1[1]] = np.array([200, 0, 0])
+            obs[agent_idx2[0], agent_idx2[1]] = np.array([100, 0, 0])
         # Set the agent to be red
         obs[agent_idx[0], agent_idx[1]] = np.array([255, 0, 0])
         return obs
@@ -156,7 +161,6 @@ class NavEnv(gym.Env):
         The reward is a mixture of Gaussians functions
         Highest at the origin and lowest at the four corners
         """
-
         self.mixtures = {
             'mu': [np.zeros(self.pos_dim),
                    np.array([self.size / 3, self.size / 3]),
@@ -206,6 +210,10 @@ class NavEnv(gym.Env):
         # reward = (reward - self.reward_min) / (self.reward_max - self.reward_min) * 2 - 1
         # shape reward to [-1, 0] to assist learning
         reward_std = (reward - self.reward_min) / (self.reward_max - self.reward_min)
-        min_val, max_val = (-1, 0)
+        min_val, max_val = (-10, 0)
         scale_reward = reward_std * (max_val - min_val) + min_val
         return scale_reward
+
+    def get_idx(self, pos):
+        idx = ((pos + self.size) / (2 * self.size) * (self.obs_dim - 1)).astype(int)
+        return idx
