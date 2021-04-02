@@ -1,23 +1,22 @@
 import argparse
+import sys
 
 import numpy as np
 import matplotlib.pyplot as plt
 from PIL import Image
 import imageio
 import torch
-from sklearn.metrics import mean_squared_error
-import sklearn.preprocessing as preprocessing
 import gym
 import gym_nav
 from stable_baselines3 import PPO
-from stable_baselines3.common.vec_env import DummyVecEnv
 from tqdm import tqdm
 import time
-from gym_nav.envs.multi_nav_env import MultiNavEnv
+
 from utils import tic, toc
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
+    parser.add_argument('--env', '-e', type=str, default="MultiNavEnv-v0")
     parser.add_argument('--render', '-r', action='store_true', default=False)
     parser.add_argument('--plot', '-plt', action='store_true', default=False)
     parser.add_argument('--video', '-v', action='store_true', default=False)
@@ -40,8 +39,18 @@ if __name__ == '__main__':
     policy_model.eval()
     #######################################################################################
     # Init ENV
-    env = gym.make("MultiNavEnv-v0")
+    if params['env']=="MultiNavEnv-v0":
+        env = gym.make("MultiNavEnv-v0")
+    else:
+        env = gym.make("NavEnv-v0")
     env.seed(SEED)
+    #######################################################################################
+    np.set_printoptions(threshold=sys.maxsize)
+    print(env.Z)
+    print(env.Z.shape)
+    plt.imshow(env.reward_map)
+    plt.show()
+
     #######################################################################################
     all_log = {'agent_rews': [], 'agent_done': [], 'agent_eps_return': [], 'agent_total_return': [],
                'demo_rews': [], 'demo_done': [], 'demo_eps_return': [], 'demo_total_return': [],
