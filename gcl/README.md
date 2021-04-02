@@ -7,8 +7,9 @@
 - [x] Add rgb_array render mode in 2D navigation environment
 - [x] Set up RL agent (PPO, SAC) as expert policy
 - [x] Implement GCL
-- [ ] Add visualization for learned reward during training
-- [ ] Check tensorboard video logger for visualizing reward map
+- [x] Add visualization for learned reward during training
+- [x] Check tensorboard video logger for visualizing reward map
+- [ ] Check expert policy and ensure it doesn't pass high-cost reagion
 - [ ] Clear TODOs in code 
 
 # Installation
