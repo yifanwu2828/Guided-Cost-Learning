@@ -113,8 +113,6 @@ class MultiNavEnv(gym.Env):
         agent_idx0 = self.get_idx(agent_pos)
 
         # traj
-
-        # self.agent_pos_list
         if len(self.demo_pos_list) >= 3:
             demo_idx1=self.get_idx(self.demo_pos_list[-2])
             demo_idx2=self.get_idx(self.demo_pos_list[-3])
@@ -209,6 +207,7 @@ class MultiNavEnv(gym.Env):
         if mode == 'human':
             self.window.show_img(img)
             self.window.set_caption(self.mission + "Demo: red, Agent: green")
+            return img
 
         elif mode == 'rgb_array':
             return img
@@ -280,7 +279,7 @@ class MultiNavEnv(gym.Env):
     @staticmethod
     def terminate_condition(pos):
         x, y = pos
-        return abs(x) <= 1e-2 and abs(y) <= 1e-2
+        return abs(x) <= 3e-2 and abs(y) <= 3e-2
 
     def get_idx(self, pos):
         idx = ((pos + self.size) / (2 * self.size) * (self.obs_dim - 1)).astype(int)
