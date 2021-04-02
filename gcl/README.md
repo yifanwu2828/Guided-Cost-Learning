@@ -1,5 +1,7 @@
 # Implementation of [Guided Cost Learning (GCL)](https://arxiv.org/pdf/1603.00448.pdf)
-
+![GitHub repo size](https://img.shields.io/github/repo-size/yifanwu2828/Inverse-Reinforcement-Learning)
+![GitHub contributors](https://img.shields.io/github/contributors/yifanwu2828/Inverse-Reinforcement-Learning)
+![GitHub last commit](https://img.shields.io/github/last-commit/yifanwu2828/Inverse-Reinforcement-Learning)
 # TODO
 - [x] Set up 2D navigation environment
 - [x] Add rgb_array render mode in 2D navigation environment
