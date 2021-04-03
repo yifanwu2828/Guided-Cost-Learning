@@ -5,11 +5,11 @@ from itertools import accumulate
 
 import numpy as np
 
-from gcl.agents.mlp_policy import MLPPolicyPG
+from gcl.policies.mlp_policy import MLPPolicyPG
 from gcl.agents.base_agent import BaseAgent
-from gcl.scripts.replay_buffer import ReplayBuffer
-import gcl.scripts.utils as utils
-from gcl.scripts.utils import PathDict
+from gcl.infrastructure.replay_buffer import ReplayBuffer
+import gcl.infrastructure.utils as utils
+from gcl.infrastructure.utils import PathDict
 
 
 class PGAgent(BaseAgent, metaclass=ABCMeta):

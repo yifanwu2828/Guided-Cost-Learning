@@ -6,12 +6,12 @@ from itertools import accumulate
 import numpy as np
 import torch
 
-from .mlp_policy import MLPPolicyPG
+from gcl.policies.mlp_policy import MLPPolicyPG
 from .base_agent import BaseAgent
 from .mlp_reward import MLPReward
-from gcl.scripts.replay_buffer import ReplayBuffer
-from gcl.scripts.utils import PathDict, normalize
-import gcl.scripts.pytorch_util as ptu
+from gcl.infrastructure.replay_buffer import ReplayBuffer
+from gcl.infrastructure.utils import PathDict, normalize
+import gcl.infrastructure.pytorch_util as ptu
 
 
 class GCL_Agent(BaseAgent, metaclass=ABCMeta):

@@ -55,7 +55,7 @@ def A2C_demo():
 
     # Save model
     # model.save("ppo_nav_env")
-    model = A2C.load("tmp/demo_agent/a2c_nav_env")
+    model = A2C.load("../model/a2c_nav_env")
     evaluate(model, num_episodes=200, env_id='NavEnv-v0')
 
     env = gym.make('NavEnv-v0')
@@ -73,15 +73,17 @@ def PPO_demo():
     print("################# Collecting PPO Demo #################")
     # Parallel environments
     env = make_vec_env('NavEnv-v0', n_envs=6)
-    model = PPO(MlpPolicy, env, verbose=1, learning_rate=2e-3)
+    model = PPO(MlpPolicy, env, verbose=1, learning_rate=3e-3)
     start_time = time.time()
-    model.learn(total_timesteps=400000)
+    model.learn(total_timesteps=516_096)
     print(f"Finish in {(time.time() - start_time)}")
 
     # Save model
-    model.save("ppo_nav_env")
-    # model = PPO.load("tmp/demo_agent/ppo_nav_env")
-    model = PPO.load("ppo_nav_env")
+    model.save("../model/ppo_nav_env")
+    del model
+
+    # Load model
+    model = PPO.load("../model/ppo_nav_env")
     evaluate(model, num_episodes=200, env_id='NavEnv-v0')
 
     env = gym.make('NavEnv-v0')
@@ -91,8 +93,8 @@ def PPO_demo():
         action, _states = model.predict(obs, deterministic=True)
         obs, reward, done, info = env.step(action)
         env.render()
+        time.sleep(0.1)
         if done:
-            print(env.pos)
             obs = env.reset()
             print(f"itr:{i}, step:{int(i - t)} -> done :{done}")
             t = i
@@ -102,12 +104,12 @@ def PPO_demo():
 def SAC_demo():
     print("################# Collecting SAC Demo #################")
     env = gym.make('NavEnv-v0')
-    # wrap Monitor to env to visulize ep_len_mean and ep_rew_mean
+    # wrap Monitor to env to visualize ep_len_mean and ep_rew_mean
     env = Monitor(env)
     # model = SAC('MlpPolicy', env, verbose=1,)
     # model.learn(total_timesteps=2e4, log_interval=10)
     # model.save("sac_nav_env")
-    model = SAC.load("tmp/demo_agent/sac_nav_env")
+    model = SAC.load("../model/sac_nav_env")
     evaluate(model, num_episodes=200, env_id='NavEnv-v0')
 
 

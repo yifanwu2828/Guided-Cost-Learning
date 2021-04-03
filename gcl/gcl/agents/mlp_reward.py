@@ -6,7 +6,7 @@ import torch
 from torch import nn
 from torch import optim
 
-from gcl.scripts import pytorch_util as ptu
+from gcl.infrastructure import pytorch_util as ptu
 warnings.filterwarnings('always')
 
 
@@ -33,9 +33,10 @@ class MLPReward(nn.Module):
             activation='identity',
             output_activation='relu'
         )
+        self.initialize_weights()
+
         self.A = nn.Parameter(
             torch.ones(self.output_size, self.output_size, dtype=torch.float32, device=ptu.device)
-            # torch.eyes(self.output_size, dtype=torch.float32, device=ptu.device)
         )
         self.b = nn.Parameter(
             torch.ones(self.output_size, dtype=torch.float32, device=ptu.device)
@@ -56,6 +57,24 @@ class MLPReward(nn.Module):
         )
         print("MLP REW", ptu.device)
         # self.mlp.to(ptu.device)
+
+    def initialize_weights(self):
+        """weight initialization"""
+        for m in self.mlp.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_uniform_(m.weight)
+
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+
+            elif isinstance(m, nn.BatchNorm2d):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
+
+            elif isinstance(m, nn.Linear):
+                nn.init.kaiming_uniform_(m.weight, mode='fan_in', nonlinearity='relu')
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
 
     #####################################################
     #####################################################

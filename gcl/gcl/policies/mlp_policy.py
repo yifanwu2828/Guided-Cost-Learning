@@ -9,9 +9,9 @@ import numpy as np
 import torch
 from torch import distributions
 
-from gcl.scripts import utils
-from gcl.scripts import pytorch_util as ptu
-from gcl.agents.base_policy import BasePolicy
+from gcl.infrastructure import utils
+import gcl.infrastructure.pytorch_util as ptu
+from gcl.policies.base_policy import BasePolicy
 
 
 class MLPPolicy(BasePolicy, nn.Module, metaclass=abc.ABCMeta):
@@ -45,7 +45,8 @@ class MLPPolicy(BasePolicy, nn.Module, metaclass=abc.ABCMeta):
                                            output_size=self.ac_dim,
                                            n_layers=self.n_layers,
                                            size=self.size)
-            self.logits_na.to(ptu.device)
+            # self.logits_na.to(ptu.device)
+
             self.optimizer = optim.Adam(self.logits_na.parameters(),
                                         self.learning_rate
                                         )
@@ -58,10 +59,10 @@ class MLPPolicy(BasePolicy, nn.Module, metaclass=abc.ABCMeta):
                                           output_size=self.ac_dim,
                                           n_layers=self.n_layers, size=self.size)
             self.logstd = nn.Parameter(
-                torch.zeros(self.ac_dim, dtype=torch.float32, device=ptu.device)
+                torch.zeros(self.ac_dim, dtype=torch.float32)
             )
-            self.mean_net.to(ptu.device)
-            self.logstd.to(ptu.device)
+            # self.mean_net.to(ptu.device)
+            # self.logstd.to(ptu.device)
             self.optimizer = optim.Adam(
                 itertools.chain([self.logstd], self.mean_net.parameters()),
                 lr=self.learning_rate
@@ -74,7 +75,7 @@ class MLPPolicy(BasePolicy, nn.Module, metaclass=abc.ABCMeta):
                 n_layers=self.n_layers,
                 size=self.size,
             )
-            self.baseline.to(ptu.device)
+            # self.baseline.to(ptu.device)
             self.baseline_optimizer = optim.Adam(
                 self.baseline.parameters(),
                 self.learning_rate,

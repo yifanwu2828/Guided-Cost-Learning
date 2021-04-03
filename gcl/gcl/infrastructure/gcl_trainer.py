@@ -4,20 +4,19 @@ from functools import lru_cache
 from collections import OrderedDict
 import itertools
 from typing import List, Optional, Tuple, Dict, Sequence, Any
-import copy
 
 import gym
-import gym_nav
 import numpy as np
 import torch
 from stable_baselines3 import PPO
 from tqdm import tqdm
 
-import pytorch_util as ptu
-import utils
-from utils import PathDict
-from gcl.agents.base_policy import BasePolicy
-from logger import Logger
+import gcl.infrastructure.pytorch_util as ptu
+from gcl.infrastructure.logger import Logger
+import gcl.infrastructure.utils as utils
+from gcl.infrastructure.utils import PathDict
+from gcl.policies.base_policy import BasePolicy
+
 
 # how many rollouts to save as videos to tensorboard
 MAX_NVIDEO = 2
@@ -72,6 +71,7 @@ class GCL_Trainer(object):
 
         # Observation and action sizes
         ob_dim: int = self.env.observation_space.shape if is_img else self.env.observation_space.shape[0]
+        print(ob_dim)
         ac_dim: int = self.env.action_space.n if discrete else self.env.action_space.shape[0]
         self.params['agent_params']['ac_dim'] = ac_dim
         self.params['agent_params']['ob_dim'] = ob_dim
@@ -249,10 +249,10 @@ class GCL_Trainer(object):
 
             save_itr = [100, 125, 150, 200, 250, 300, 350, 400]
             if itr in save_itr:
-                fname1 = f"test_gcl_reward_{itr}.pth"
+                fname1 = f"../model/test_gcl_reward_{itr}.pth"
                 reward_model = self.agent.reward
                 torch.save(reward_model, fname1)
-                fname2 = f"test_gcl_policy_{itr}.pth"
+                fname2 = f"../model/test_gcl_policy_{itr}.pth"
                 policy_model = self.agent.actor
                 torch.save(policy_model, fname2)
             # update progress bar

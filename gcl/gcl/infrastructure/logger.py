@@ -15,6 +15,10 @@ class Logger:
         self._summ_writer = SummaryWriter(log_dir, flush_secs=1, max_queue=1)
 
     @property
+    def logdir(self):
+        return self._log_dir
+
+    @property
     def n_logged_samples(self):
         return self._n_logged_samples
 

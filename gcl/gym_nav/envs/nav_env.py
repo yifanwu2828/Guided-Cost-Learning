@@ -1,3 +1,4 @@
+from functools import lru_cache
 import gym
 from gym import error, spaces, utils
 from gym.utils import seeding
@@ -21,7 +22,7 @@ class NavEnv(gym.Env):
         self.action_dim = 2
         self.pos_dim = 2
         self.vel_dim = 2
-        self.obs_dim = 64
+        self.resolution = 64 * 2
         self.dt = 1e-1
 
         # States are 2D position
@@ -40,6 +41,11 @@ class NavEnv(gym.Env):
             shape=(self.pos_dim + self.vel_dim,),
             dtype="float32"
         )
+
+        # Reward map
+        self.reward_map = None
+        self.reward_min = None
+        self.reward_max = None
 
         # Window to use for human rendering mode
         self.window = None
@@ -79,7 +85,7 @@ class NavEnv(gym.Env):
         Add the agent position to the reward map
         """
         obs = self.reward_map.copy()
-        agent_idx = ((agent_pos + self.size) / (2 * self.size) * (self.obs_dim - 1)).astype(int)
+        agent_idx = ((agent_pos + self.size) / (2 * self.size) * (self.resolution - 1)).astype(int)
 
         if len(self.pos_list) >= 3:
             agent_idx1 = self.get_idx(self.pos_list[-2])
@@ -156,32 +162,40 @@ class NavEnv(gym.Env):
             self.window.close()
         return
 
+    @lru_cache(maxsize=5)
     def init_reward(self):
         """
         The reward is a mixture of Gaussians functions
         Highest at the origin and lowest at the four corners
         """
+        mu_factor = 1 / 3
+        std_factor = 1 / 8
+        A_factor = -1
         self.mixtures = {
             'mu': [np.zeros(self.pos_dim),
-                   np.array([self.size / 3, self.size / 3]),
-                   np.array([self.size / 3, -self.size / 3]),
-                   np.array([-self.size / 3, self.size / 3]),
-                   np.array([-self.size / 3, -self.size / 3])],
+                   np.array([self.size * mu_factor, self.size * mu_factor]),
+                   np.array([self.size * mu_factor, -self.size * mu_factor]),
+                   np.array([-self.size * mu_factor, self.size * mu_factor]),
+                   np.array([-self.size * mu_factor, -self.size * mu_factor])
+                   ],
+
             'std': [self.size,
-                    self.size / 6,
-                    self.size / 6,
-                    self.size / 6,
-                    self.size / 6],
-            'A': [2, -1, -1, -1, -1]
+                    self.size * std_factor,
+                    self.size * std_factor,
+                    self.size * std_factor,
+                    self.size * std_factor
+                    ],
+
+            'A': [2, A_factor, A_factor, A_factor, A_factor]
         }
 
-        # Increase obs_dim for higher resolution
-        num = self.obs_dim
+        # Increase self.resolution for higher resolution
+        num = self.resolution
         x = np.linspace(-self.size, self.size, num=num)
         y = np.linspace(-self.size, self.size, num=num)
         # TODO: vectorized this computation
         X, Y = np.meshgrid(x, y)
-        Z = np.zeros((num, num))
+        Z = np.empty((num, num))
         for i in range(num):
             for j in range(num):
                 Z[i, j] = self.eval_gaussian(np.array([X[i, j], Y[i, j]]))
@@ -190,6 +204,7 @@ class NavEnv(gym.Env):
         Z = ((Z - self.reward_min) / (self.reward_max - self.reward_min) * 255).astype(np.uint8)
         # convert grayscale to rgb by stacking three channels
         self.reward_map = np.stack((Z, Z, Z), axis=-1)
+        self.Z = Z
 
     def eval_gaussian(self, x):
         """
@@ -205,15 +220,16 @@ class NavEnv(gym.Env):
         Evaluate the reward at the current position x
         """
         reward = self.eval_gaussian(x)
+        reward_range = (-20, 0)
 
         # shape reward to [-1, 1] to assist learning
         # reward = (reward - self.reward_min) / (self.reward_max - self.reward_min) * 2 - 1
         # shape reward to [-1, 0] to assist learning
         reward_std = (reward - self.reward_min) / (self.reward_max - self.reward_min)
-        min_val, max_val = (-10, 0)
+        min_val, max_val = reward_range
         scale_reward = reward_std * (max_val - min_val) + min_val
         return scale_reward
 
     def get_idx(self, pos):
-        idx = ((pos + self.size) / (2 * self.size) * (self.obs_dim - 1)).astype(int)
+        idx = ((pos + self.size) / (2 * self.size) * (self.resolution - 1)).astype(int)
         return idx
