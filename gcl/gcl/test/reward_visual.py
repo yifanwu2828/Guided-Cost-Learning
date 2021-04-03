@@ -4,13 +4,11 @@ import torch
 from sklearn.metrics import mean_squared_error
 import sklearn.preprocessing as preprocessing
 import gym
-import gym_nav
 from stable_baselines3 import PPO
 from tqdm import tqdm
-import pickle
 import time
 
-from utils import tic, toc
+from gcl.infrastructure.utils import tic, toc
 
 
 def get_metrics(reward):
@@ -31,86 +29,30 @@ if __name__ == '__main__':
     torch.random.manual_seed(SEED)
     #######################################################################################
     # Set global Var
-    # VERBOSE = False
-    # VISUAL = False
-    # POLICY = True
-
-    VERBOSE = True
-    VISUAL = True
+    VERBOSE = False
+    VISUAL = False
     POLICY = True
-    #######################################################################################
+
+    # VERBOSE = True
+    # VISUAL = True
+    # POLICY = True
+    # #######################################################################################
     # load model
     start_load = tic("############ Load Model ############")
-    fname1 = "test_gcl_reward_200.pth"
+    fname1 = "../model/test_gcl_reward_GPU.pth"
     reward_model = torch.load(fname1)
     reward_model.eval()
 
-    fname2 = "test_gcl_policy_200.pth"
+    fname2 = "../model/test_gcl_policy_GPU.pth"
     policy_model = torch.load(fname2)
     policy_model.eval()
 
-    visual_model = PPO.load("tmp/demo_agent/ppo_nav_env")
-    model = PPO.load("ppo_nav_env")
+    model = PPO.load("../model/ppo_nav_env")
     toc(start_load, "Loading")
     #######################################################################################
     # Init ENV
     env = gym.make('NavEnv-v0')
     env.seed(SEED)
-    #######################################################################################
-    # Init Param
-    reward_log_dict = {"act": [], "obs": [], "mlp_reward": [], "true_reward": [], }
-    #######################################################################################
-    ''' TEST LEARNING REWARD '''
-    if VISUAL:
-        obs = env.reset()
-        n_step = range(500)
-        for _ in tqdm(n_step):
-            action, _states = visual_model.predict(obs, deterministic=True)
-            obs, reward, done, info = env.step(action)
-            reward_log_dict["act"].append(action)
-            reward_log_dict["obs"].append(obs)
-            reward_log_dict["mlp_reward"].append(float(reward_model(torch.from_numpy(obs).float(),
-                                                                    torch.from_numpy(action).float())
-                                                       .detach().numpy()))
-            reward_log_dict["true_reward"].append(reward)
-            # env.render()
-            if done:
-                obs = env.reset()
-        env.close()
-
-        mlp_reward = np.array(reward_log_dict["mlp_reward"])
-        true_reward = np.array(reward_log_dict["true_reward"])
-
-        scaler = preprocessing.MinMaxScaler(feature_range=(-10, 0))
-        scaler.fit(mlp_reward.reshape(-1, 1))
-        scaled_reward = scaler.transform(mlp_reward.reshape(-1, 1))
-        f, ax = plt.subplots()
-        ax.scatter(range(mlp_reward.size), scaled_reward, label="mlp_reward")
-        ax.scatter(range(true_reward.size), true_reward, label="true_reward")
-        ax.legend()
-        plt.show()
-        mean_mlp_reward, std_mlp_reward = get_metrics(scaled_reward)
-        mean_true_reward, std_true_reward = get_metrics(true_reward)
-        print(f"mean_mlp_reward:{mean_mlp_reward:.4f}, std_mlp_reward:{std_mlp_reward:.4f}")
-        print(f"mean_true_reward:{mean_true_reward:.4f}, std_true_reward:{std_true_reward:.4f}")
-        print(f"MSE: {mean_squared_error(true_reward, scaled_reward):.5f}")
-    #######################################################################################
-    if VERBOSE:
-        f1, ax1 = plt.subplots()
-        ax1.scatter(range(mlp_reward.size), mlp_reward, label="mlp_reward")
-        ax1.scatter(range(true_reward.size), true_reward, label="true_reward")
-        ax1.legend()
-        plt.show()
-
-        f2, ax2 = plt.subplots()
-        ax2.scatter(range(mlp_reward.size), mlp_reward, label="mlp_reward")
-        ax2.legend()
-        plt.show()
-
-        f3, ax2 = plt.subplots()
-        ax2.scatter(range(true_reward.size), true_reward, label="true_reward", color='#FF7433')
-        ax2.legend()
-        plt.show()
 
     #######################################################################################
     #######################################################################################

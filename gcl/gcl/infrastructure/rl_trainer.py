@@ -1,18 +1,16 @@
 import time
 from collections import OrderedDict
-from typing import List, Dict, Tuple, Any, Sequence, Optional
+from typing import List, Dict, Tuple, Sequence, Optional
 
 import gym
-import gym_nav
 import numpy as np
 import torch
 from tqdm import tqdm
 
-import pytorch_util as ptu
-import utils
-from utils import PathDict
-from logger import Logger
-from gcl.agents.base_policy import BasePolicy
+from gcl.infrastructure import pytorch_util as ptu, utils
+from gcl.infrastructure.utils import PathDict
+from gcl.infrastructure.logger import Logger
+from gcl.policies.base_policy import BasePolicy
 
 # how many rollouts to save as videos to tensorboard
 MAX_NVIDEO = 2
@@ -156,7 +154,7 @@ class RL_Trainer(object):
 
             # train agent (using sampled data from replay buffer)
             train_logs = self.train_policy()
-            train_logs_out = train_logs[0]['Training_Loss']
+            train_logs_out = train_logs[0]['Training_Policy_Loss']
             train_logs_lst.append(train_logs_out)
 
             # log/save
@@ -197,7 +195,8 @@ class RL_Trainer(object):
             policy=collect_policy,
             agent=self.agent,
             min_timesteps_per_batch=batch_size,
-            max_path_length=self.params['ep_len']
+            max_path_length=self.params['ep_len'],
+            evaluate=True
         )
         print(f"\n--envsteps_this_batch: {envsteps_this_batch}")
 
@@ -236,7 +235,8 @@ class RL_Trainer(object):
             eval_returns = utils.sample_trajectories(self.env,
                                                      eval_policy, self.agent,
                                                      min_timesteps_per_batch=self.params['eval_batch_size'],
-                                                     max_path_length=self.params['ep_len']
+                                                     max_path_length=self.params['ep_len'],
+                                                     evaluate=True
                                                      )
         eval_paths, eval_envsteps_this_batch = eval_returns
 
@@ -245,7 +245,7 @@ class RL_Trainer(object):
             print('\nCollecting video rollouts eval')
             with torch.no_grad():
                 eval_video_paths = utils.sample_n_trajectories(self.env, eval_policy, self.agent,
-                                                               MAX_NVIDEO, MAX_VIDEO_LEN, True)
+                                                               MAX_NVIDEO, MAX_VIDEO_LEN, True, evaluate=True)
 
             # save train/eval videos
             print('\nSaving train rollouts as videos...')

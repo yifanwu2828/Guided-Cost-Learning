@@ -7,9 +7,9 @@ import torch
 import matplotlib.pyplot as plt
 import gym
 import gym_nav
-from gcl.scripts.rl_trainer import RL_Trainer
+from gcl.infrastructure.rl_trainer import RL_Trainer
 from gcl.agents.pg_agent import PGAgent
-from gcl.scripts.utils import tic, toc
+from gcl.infrastructure.utils import tic, toc
 
 
 class PG_Trainer(object):
@@ -156,7 +156,7 @@ if __name__ == '__main__':
     plt.show()
 
     # saving mlp Policy
-    SAVE = True
+    SAVE = False
     if SAVE:
         fname2 = "test_pg.pth"
         policy_model = trainer.rl_trainer.agent.actor

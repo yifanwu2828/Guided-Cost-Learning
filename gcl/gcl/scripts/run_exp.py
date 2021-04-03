@@ -2,7 +2,7 @@ import argparse
 import os
 import time 
 
-from gcl_trainer import GCL_Trainer
+from gcl.infrastructure.gcl_trainer import GCL_Trainer
 from gcl.agents.gcl_agent import GCL_Agent
 
 class IRL_Trainer():

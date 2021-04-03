@@ -5,14 +5,10 @@ import time
 import numpy as np
 import torch
 import matplotlib.pyplot as plt
-import gym
-import gym_nav
-from tqdm import tqdm
 
-from gcl_trainer import GCL_Trainer
+from gcl.infrastructure.gcl_trainer import GCL_Trainer
 from gcl.agents.gcl_agent import GCL_Agent
-from utils import tic, toc
-import pytorch_util as ptu
+from gcl.infrastructure.utils import tic, toc
 
 
 class IRL_Trainer(object):
@@ -75,12 +71,7 @@ def removeOutliers(x, outlierConstant=1.5) -> list:
     return result.tolist()
 
 
-if __name__ == '__main__':
-    print(torch.__version__)
-    # set overflow warning to error instead
-    # np.seterr(all='raise')
-    torch.backends.cudnn.benchmark = True
-
+def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--env_name', '-env', type=str, default='NavEnv-v0')
     parser.add_argument('--exp_name', '-exp', type=str, default='nav_env_irl')
@@ -169,24 +160,25 @@ if __name__ == '__main__':
     print("##### PARAM ########")
     # path of pretrain model
     path = os.getcwd()
-    params["expert_policy"] = os.path.join(path, "ppo_nav_env")
+    params["no_gpu"] = True
+    params["expert_policy"] = "../model/ppo_nav_env"
     params["ep_len"] = 100
 
 
     '''Outer Training Loop (Algorithm 1: Guided cost learning)'''
     # Number of iteration of outer training loop (Algorithm 1)
-    params['n_iter'] = 400  # sweet spot 400
+    params['n_iter'] = 77  # sweet spot 400
     # Number of expert rollouts to add to demo replay buffer before outer loop
     params['demo_size'] = 200
     # number of current policy rollouts add to sample buffer per itr in outer training loop
-    params["sample_size"] = 100
+    # params["sample_size"] = 100
 
     ''' Train Reward (Algorithm 2) '''
     # Number of reward updates per iteration in Algorithm 2
     params["num_reward_train_steps_per_iter"] = 10  # 10 K_r
     # Number of expert rollouts to sample from replay buffer per reward update
-    params["train_demo_batch_size"] = 100
-    # Number of policy rollouts to sample from replay buffer per reward update '''sample recent?'''
+    params["train_demo_batch_size"] = 200
+    # Number of policy rollouts to sample from replay buffer per reward update
     params["train_sample_batch_size"] = 100  # 100
 
 
@@ -194,12 +186,13 @@ if __name__ == '__main__':
     # Number of policy updates per iteration
     params["num_policy_train_steps_per_iter"] = 1  # K_p
     # Number of transition steps to sample from sample replay buffer per policy update
+    # equivalent to number of transition steps collect in outer loop
     params["train_batch_size"] = 10_000  # 10_000
 
 
 
     # size of subset should be less than size of set
-    assert params["sample_size"] >= params["train_sample_batch_size"]
+    # assert params["sample_size"] >= params["train_sample_batch_size"]
     assert params['demo_size'] >= params["train_demo_batch_size"]
     assert params["train_batch_size"] >= params["train_sample_batch_size"] * params["ep_len"]
 
@@ -214,7 +207,7 @@ if __name__ == '__main__':
     trainer = IRL_Trainer(params)
     start_train = tic()
     train_log_lst, policy_log_lst = trainer.run_training_loop()
-    toc(start_train)
+    toc(start_train, ftime=True)
 
     ###################
     # Test
@@ -241,24 +234,18 @@ if __name__ == '__main__':
     # saving mlp Reward and Policy
     SAVE = True
     if SAVE:
-        fname1 = "test_gcl_reward_GPU.pth"
+        fname1 = "../model/test_gcl_reward_GPU.pth"
         reward_model = trainer.gcl_trainer.agent.reward
         torch.save(reward_model, fname1)
 
-        fname2 = "test_gcl_policy_GPU.pth"
+        fname2 = "../model/test_gcl_policy_GPU.pth"
         policy_model = trainer.gcl_trainer.agent.actor
         torch.save(policy_model, fname2)
 
-    # Init ENV
-    env = gym.make('NavEnv-v0')
-    env.seed(0)
-    #######################################################################################
-    obs = env.reset()
-    n_step = range(500)
-    for t in tqdm(n_step):
-        action, _logprob = trainer.gcl_trainer.agent.actor.get_action(obs)
-        obs, reward, done, info = env.step(action[0])
-        env.render()
-        if done:
-            obs = env.reset()
-    env.close()
+
+if __name__ == '__main__':
+    print(torch.__version__)
+    # set overflow warning to error instead
+    # np.seterr(all='raise')
+    main()
+

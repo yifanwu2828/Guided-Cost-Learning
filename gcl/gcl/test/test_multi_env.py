@@ -7,12 +7,11 @@ from PIL import Image
 import imageio
 import torch
 import gym
-import gym_nav
 from stable_baselines3 import PPO
 from tqdm import tqdm
 import time
 
-from utils import tic, toc
+from gcl.infrastructure.utils import tic, toc
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -32,14 +31,14 @@ if __name__ == '__main__':
     #######################################################################################
     # # load model
     start_load = tic("############ Load Model ############")
-    demo_model = PPO.load("ppo_nav_env")
+    demo_model = PPO.load("../model/ppo_nav_env")
 
-    fname2 = "test_gcl_policy_GPU.pth"
+    fname2 = "../model/test_gcl_policy_GPU.pth"
     policy_model = torch.load(fname2)
     policy_model.eval()
     #######################################################################################
     # Init ENV
-    if params['env']=="MultiNavEnv-v0":
+    if params['env'] == "MultiNavEnv-v0":
         env = gym.make("MultiNavEnv-v0")
     else:
         env = gym.make("NavEnv-v0")
@@ -131,7 +130,7 @@ if __name__ == '__main__':
     if VIDEO:
         imageio.mimsave(PATH, images)
     toc(start_save, "Finishing saving GIF")
-    
+
     plt.figure()
     plt.plot(all_log['winner'])
     plt.title("Winner of each round, 0: demo done first, 1: agent done first")
@@ -150,7 +149,6 @@ if __name__ == '__main__':
     plt.title("Total Reward")
     plt.legend()
     plt.show(block=True)
-
 
     # env = gym.make("NavEnv-v0")
     # env.seed(SEED)
