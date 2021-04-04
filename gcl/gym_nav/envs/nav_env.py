@@ -73,7 +73,9 @@ class NavEnv(gym.Env):
         self.pos_list.append(self.pos.copy())
 
         done = False
-        done_cond = abs(self.pos[0]) <= 3e-2 and abs(self.pos[1]) <= 3e-2
+        threshold = 3e-2
+        # threshold = 1e-2
+        done_cond = self.terminate_condition(self.pos, threshold)
         terminate_cond = (self.step_count >= self.max_steps)
         if done_cond or terminate_cond:
             done = True
@@ -179,14 +181,14 @@ class NavEnv(gym.Env):
                    np.array([-self.size * mu_factor, -self.size * mu_factor])
                    ],
 
-            'std': [self.size,
+            'std': [self.size*1.2,
                     self.size * std_factor,
                     self.size * std_factor,
                     self.size * std_factor,
                     self.size * std_factor
                     ],
 
-            'A': [2, A_factor, A_factor, A_factor, A_factor]
+            'A': [2.5, A_factor, A_factor, A_factor, A_factor]
         }
 
         # Increase self.resolution for higher resolution
@@ -229,6 +231,11 @@ class NavEnv(gym.Env):
         min_val, max_val = reward_range
         scale_reward = reward_std * (max_val - min_val) + min_val
         return scale_reward
+
+    @staticmethod
+    def terminate_condition(pos, threshold):
+        x, y = pos
+        return abs(x) <= threshold and abs(y) <= threshold
 
     def get_idx(self, pos):
         idx = ((pos + self.size) / (2 * self.size) * (self.resolution - 1)).astype(int)
