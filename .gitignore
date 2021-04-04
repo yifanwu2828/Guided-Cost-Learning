@@ -2,6 +2,9 @@
 
 data/
 
+# Mypy
+.mypy_cache
+
 # Vitualenv
 .env
 .venv
