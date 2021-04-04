@@ -23,7 +23,7 @@ class MultiNavEnv(gym.Env):
         self.action_dim = 2
         self.pos_dim = 2
         self.vel_dim = 2
-        self.obs_dim = 64
+        self.obs_dim = 64*2
         self.dt = 1e-1
 
         # States are 2D position
@@ -92,8 +92,9 @@ class MultiNavEnv(gym.Env):
 
         demo_done, agent_done = False, False
 
-        demo_success = self.terminate_condition(self.demo_pos)
-        agent_success = self.terminate_condition(self.agent_pos)
+        self.threshold = 3e-2
+        demo_success = self.terminate_condition(self.demo_pos, self.threshold)
+        agent_success = self.terminate_condition(self.agent_pos, self.threshold)
         demo_terminate_cond = (self.demo_step_count >= self.max_steps)
         agent_terminate_cond = (self.agent_step_count >= self.max_steps)
         if demo_success or demo_terminate_cond:
@@ -222,19 +223,25 @@ class MultiNavEnv(gym.Env):
         The reward is a mixture of Gaussians functions
         Highest at the origin and lowest at the four corners
         """
-
+        mu_factor = 1 / 3
+        std_factor = 1 / 8
+        A_factor = -1
         self.mixtures = {
             'mu': [np.zeros(self.pos_dim),
-                   np.array([self.size / 3, self.size / 3]),
-                   np.array([self.size / 3, -self.size / 3]),
-                   np.array([-self.size / 3, self.size / 3]),
-                   np.array([-self.size / 3, -self.size / 3])],
-            'std': [self.size,
-                    self.size / 6,
-                    self.size / 6,
-                    self.size / 6,
-                    self.size / 6],
-            'A': [2, -1, -1, -1, -1]
+                   np.array([self.size * mu_factor, self.size * mu_factor]),
+                   np.array([self.size * mu_factor, -self.size * mu_factor]),
+                   np.array([-self.size * mu_factor, self.size * mu_factor]),
+                   np.array([-self.size * mu_factor, -self.size * mu_factor])
+                   ],
+
+            'std': [self.size * 1.2,
+                    self.size * std_factor,
+                    self.size * std_factor,
+                    self.size * std_factor,
+                    self.size * std_factor
+                    ],
+
+            'A': [2.5, A_factor, A_factor, A_factor, A_factor]
         }
 
         # Increase obs_dim for higher resolution
@@ -272,14 +279,14 @@ class MultiNavEnv(gym.Env):
         # reward = (reward - self.reward_min) / (self.reward_max - self.reward_min) * 2 - 1
         # shape reward to [-1, 0] to assist learning
         reward_std = (reward - self.reward_min) / (self.reward_max - self.reward_min)
-        min_val, max_val = (-1, 0)
+        min_val, max_val = (-20, 0)
         scale_reward = reward_std * (max_val - min_val) + min_val
         return scale_reward
 
     @staticmethod
-    def terminate_condition(pos):
+    def terminate_condition(pos, threshold):
         x, y = pos
-        return abs(x) <= 3e-2 and abs(y) <= 3e-2
+        return abs(x) <= threshold and abs(y) <= threshold
 
     def get_idx(self, pos):
         idx = ((pos + self.size) / (2 * self.size) * (self.obs_dim - 1)).astype(int)
