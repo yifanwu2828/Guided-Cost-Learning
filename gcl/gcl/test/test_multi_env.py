@@ -7,7 +7,7 @@ from PIL import Image
 import imageio
 import torch
 import gym
-from stable_baselines3 import PPO
+from stable_baselines3 import PPO, SAC, A2C
 from tqdm import tqdm
 import time
 
@@ -31,9 +31,9 @@ if __name__ == '__main__':
     #######################################################################################
     # # load model
     start_load = tic("############ Load Model ############")
-    demo_model = PPO.load("../model/ppo_nav_env")
+    demo_model = SAC.load("../model/sac_nav_env")
 
-    fname2 = "../model/test_gcl_policy_GPU.pth"
+    fname2 = "../model/test_gcl_policy_77.pth"
     policy_model = torch.load(fname2)
     policy_model.eval()
     #######################################################################################
@@ -45,11 +45,6 @@ if __name__ == '__main__':
     env.seed(SEED)
     #######################################################################################
     np.set_printoptions(threshold=sys.maxsize)
-    print(env.Z)
-    print(env.Z.shape)
-    plt.imshow(env.reward_map)
-    plt.show()
-
     #######################################################################################
     all_log = {'agent_rews': [], 'agent_done': [], 'agent_eps_return': [], 'agent_total_return': [],
                'demo_rews': [], 'demo_done': [], 'demo_eps_return': [], 'demo_total_return': [],
@@ -68,7 +63,7 @@ if __name__ == '__main__':
         RENDER_RGB = VIDEO
 
     demo_obs, agent_obs = env.reset()
-    n_step = range(300)
+    n_step = range(500)
     for t in tqdm(n_step):
         demo_action, _ = demo_model.predict(demo_obs, deterministic=True)
         agent_action, log_prob = policy_model.get_action(agent_obs)
