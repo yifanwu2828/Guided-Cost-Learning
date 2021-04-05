@@ -53,6 +53,10 @@ class GCL_Agent(BaseAgent, metaclass=ABCMeta):
             self.agent_params['output_size'],
             learning_rate=self.agent_params['learning_rate']
         )
+        # set mode to train
+        self.actor.train()
+        self.reward.train()
+
         print("Agent", ptu.device)
         # Replay buffers: demo holds expert demonstrations and sample holds policy samples
         self.demo_buffer = ReplayBuffer(1_000_000)

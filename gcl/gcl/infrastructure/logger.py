@@ -83,3 +83,6 @@ class Logger:
 
     def flush(self) -> None:
         self._summ_writer.flush()
+
+    def close(self):
+        self._summ_writer.close()

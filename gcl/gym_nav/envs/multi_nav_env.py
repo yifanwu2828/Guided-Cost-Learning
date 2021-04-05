@@ -26,7 +26,7 @@ class MultiNavEnv(gym.Env):
         self.obs_dim = 64*2
         self.dt = 1e-1
 
-        # States are 2D position
+        self.act_range=(-1, 1)
         # Actions are 2D velocity
         self.action_space = spaces.Box(
             low=-self.size,
@@ -77,6 +77,10 @@ class MultiNavEnv(gym.Env):
 
         self.demo_step_count += 1
         self.agent_step_count +=1
+
+        a_min, a_max = self.act_range
+        demo_action = np.clip(demo_action, a_min, a_max)
+        agent_action = np.clip(agent_action, a_min, a_max)
 
         self.update_states(demo_action, agent_action)
 
@@ -140,7 +144,8 @@ class MultiNavEnv(gym.Env):
         """
         assert not np.allclose(demo_action,  agent_action)
 
-        # print(np.allclose(self.demo_vel, self.agent_vel))
+        # print("demo:",demo_action)
+        # print("agent",agent_action)
         self.demo_pos += self.demo_vel * self.dt
         self.demo_vel += demo_action * self.dt
 

@@ -1,12 +1,12 @@
 import abc
 import itertools
 from typing import Tuple, Optional, Dict
-from torch import nn
-from torch.nn import functional as F
-from torch import optim
 
 import numpy as np
 import torch
+from torch import nn
+from torch.nn import functional as F
+from torch import optim
 from torch import distributions
 
 from gcl.infrastructure import utils

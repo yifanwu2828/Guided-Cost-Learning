@@ -5,7 +5,7 @@ import numpy as np
 import torch
 from torch import nn
 from torch import optim
-
+from dask import delayed
 from gcl.infrastructure import pytorch_util as ptu
 warnings.filterwarnings('always')
 
@@ -135,7 +135,6 @@ class MLPReward(nn.Module):
             demo_rew = self(ptu.from_numpy(demo_ob), ptu.from_numpy(demo_ac))
             # Append total reward along that trajectory
             demo_rollouts_return.append(demo_rew.sum(-1))
-        demo_return = torch.stack(demo_rollouts_return)
 
         # Sample Return
         sample_rollouts_return = []
@@ -151,6 +150,7 @@ class MLPReward(nn.Module):
             sum_log_prob = sample_log_prob.sum(-1)
             sample_rollouts_logprob.append(sum_log_prob)
 
+        demo_return = torch.stack(demo_rollouts_return)
         sample_return = torch.stack(sample_rollouts_return)
         sum_log_probs = torch.stack(sample_rollouts_logprob)
 

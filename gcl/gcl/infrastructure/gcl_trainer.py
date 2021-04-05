@@ -8,7 +8,7 @@ from typing import List, Optional, Tuple, Dict, Sequence, Any
 import gym
 import numpy as np
 import torch
-from stable_baselines3 import PPO
+from stable_baselines3 import PPO, A2C, SAC
 from tqdm import tqdm
 
 import gcl.infrastructure.pytorch_util as ptu
@@ -91,6 +91,9 @@ class GCL_Trainer(object):
         self.total_envsteps: int = 0
         self.initial_return: float = 0
 
+        # sample random data or recent data from D_samp in train reward
+        self.samp_recent = params["samp_recent"]
+
         # Timer
         self.start_time = None
 
@@ -158,6 +161,9 @@ class GCL_Trainer(object):
         n_iter_loop = tqdm(range(n_iter), desc="Guided Cost Learning", leave=False)
         for itr in n_iter_loop:
             print(f"\n********** Iteration {itr} ************")
+            # set mode to train
+            self.agent.actor.train()
+            self.agent.reward.train()
 
             # decide if videos should be rendered/logged at this iteration
             if itr % self.params['video_log_freq'] == 0 and self.params['video_log_freq'] != -1:
@@ -213,7 +219,7 @@ class GCL_Trainer(object):
 
             # 5. Use D_{samp} to update cost c_{\theta}
             rew_start_time = time.time()
-            reward_logs = self.train_reward()  # Algorithm 2
+            reward_logs = self.train_reward(recent=False)  # Algorithm 2
             # utils.toc(rew_start_time, "Update Reward")
 
             # 6. Update q_k(\tau) using D_{traj} and using GPS or PG
@@ -247,7 +253,7 @@ class GCL_Trainer(object):
                     policy_loss = float(p["Training_Policy_Loss"])
                     policy_log_lst.append(policy_loss)
 
-            save_itr = [100, 125, 150, 200, 250, 300, 350, 400]
+            save_itr = [50, 77, 100, 125, 150, 200, 250, 300, 350, 400]
             if itr in save_itr:
                 fname1 = f"../model/test_gcl_reward_{itr}.pth"
                 reward_model = self.agent.reward
@@ -257,6 +263,9 @@ class GCL_Trainer(object):
                 torch.save(policy_model, fname2)
             # update progress bar
             n_iter_loop.set_postfix()
+
+        # Close writer at the end of training,
+        self.logger.close()
         return train_log_lst, policy_log_lst
 
     ############################################################################################
@@ -292,7 +301,7 @@ class GCL_Trainer(object):
             return demo_paths[: ntrajs], 0, None
 
         elif expert_policy:
-            expert_policy_model = PPO.load(expert_policy)
+            expert_policy_model = SAC.load(expert_policy)
             print('\nRunning expert policy to collect demonstrations...')
 
             demo_paths = utils.sample_n_trajectories(
@@ -355,20 +364,28 @@ class GCL_Trainer(object):
         return paths, envsteps_this_batch, train_video_paths
 
     ############################################################################################
-    def train_reward(self) -> List[Dict]:
+    def train_reward(self, recent=False) -> List[Dict]:
         """
         Algorithm 2: Nonlinear IOC with stochastic gradients 
         """
         print("\nUpdating reward parameters...")
-        reward_logs = []
 
+        if recent:
+            print('\n Sampling recent rollouts from sample Replay buffer')
+
+        reward_logs = []
         # 1.
         K_train_reward_loop = range(self.params['num_reward_train_steps_per_iter'])
         for k_rew in K_train_reward_loop:
             # 2. Sample demonstration batch D^_{demo} \subset D_{demo}
             demo_batch = self.agent.sample_rollouts(self.params['train_demo_batch_size'], demo=True)
             # 3. Sample background batch D^_{samp} \subset D_{sample}
-            sample_batch = self.agent.sample_recent_rollouts(self.params['train_sample_batch_size'])
+            if not recent:
+                # random sampling
+                sample_batch = self.agent.sample_rollouts(self.params['train_sample_batch_size'])
+            else:
+                # sample recent data
+                sample_batch = self.agent.sample_recent_rollouts(self.params['train_sample_batch_size'])
 
             # reshape rollouts' elements to match the dimension in Replay buffer
             for num_rollout, _ in enumerate(demo_batch):
