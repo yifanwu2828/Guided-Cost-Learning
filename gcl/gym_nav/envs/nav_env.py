@@ -14,25 +14,38 @@ class NavEnv(gym.Env):
 
     metadata = {'render.modes': ['human', 'rgb_array']}
 
-    def __init__(self, size=1, seed=1337, multiplayer=1):
+    def __init__(self, size=1, seed=1337):
+
+        # max episode length
+        self.max_steps: int = 100
+
+        # resolution
+        self.resolution: int = 64 * 2
+
+        """
+        A simple dynamics model
+        position: x = x + x' * dt,
+        velocity: x' = x' + u * dt
+        """
+        self.pos_dim: int = 2
+        self.vel_dim: int = 2
+
+        self.pos: np.ndarray
+        self.vel: np.ndarray
+        self.dt: float = 1e-1
+
+        # Keep track of the position in the current episode
+        self.pos_list: list
+
+        # Step count since episode start
+        self.step_count: int
+
+        # obs and act dim
+        self.obs_dim: int = self.pos_dim + self.vel_dim
+        self.action_dim: int = 2
 
         # the box size is (2*size, 2*size)
-        self.size = size
-        self.max_steps = 100
-        self.action_dim = 2
-        self.pos_dim = 2
-        self.vel_dim = 2
-        self.resolution = 64 * 2
-        self.dt = 1e-1
-
-        # States are 2D position
-        # Actions are 2D velocity
-        self.action_space = spaces.Box(
-            low=-self.size,
-            high=self.size,
-            shape=(self.action_dim,),
-            dtype="float32"
-        )
+        self.size: int = size
 
         # Observations are the position and velocity
         self.observation_space = spaces.Box(
@@ -42,10 +55,21 @@ class NavEnv(gym.Env):
             dtype="float32"
         )
 
+        # Actions are 2D velocity
+        self.action_space = spaces.Box(
+            low=-self.size,
+            high=self.size,
+            shape=(self.action_dim,),
+            dtype="float32"
+        )
+        self.act_range = (-1, 1)
+
+
         # Reward map
         self.reward_map = None
         self.reward_min = None
         self.reward_max = None
+        self.reward_range = (-20, 0)
 
         # Window to use for human rendering mode
         self.window = None
@@ -62,9 +86,22 @@ class NavEnv(gym.Env):
         # Initialize the state
         self.reset()
 
-    def step(self, action):
+    ####################################
+    ####################################
 
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}"
+
+    ####################################
+    ####################################
+
+    def step(self, action):
+        """ env.step"""
         self.step_count += 1
+
+        # clip action
+        a_min, a_max = self.act_range
+        action = np.clip(action, a_min, a_max)
         self.update_states(action)
 
         # Observations are the position and velocity
@@ -74,7 +111,8 @@ class NavEnv(gym.Env):
 
         done = False
         threshold = 3e-2
-        # threshold = 1e-2
+
+        # end the rollout if (rollout can end due to done, or due to max_path_length)
         done_cond = self.terminate_condition(self.pos, threshold)
         terminate_cond = (self.step_count >= self.max_steps)
         if done_cond or terminate_cond:
@@ -89,13 +127,15 @@ class NavEnv(gym.Env):
         obs = self.reward_map.copy()
         agent_idx = ((agent_pos + self.size) / (2 * self.size) * (self.resolution - 1)).astype(int)
 
+        # display 2 recent pos
         if len(self.pos_list) >= 3:
             agent_idx1 = self.get_idx(self.pos_list[-2])
             agent_idx2 = self.get_idx(self.pos_list[-3])
-            obs[agent_idx1[0], agent_idx1[1]] = np.array([200, 0, 0])
-            obs[agent_idx2[0], agent_idx2[1]] = np.array([100, 0, 0])
+            obs[agent_idx1[0], agent_idx1[1]] = np.array([200, 0, 0], dtype=np.uint8)
+            obs[agent_idx2[0], agent_idx2[1]] = np.array([100, 0, 0], dtype=np.uint8)
+
         # Set the agent to be red
-        obs[agent_idx[0], agent_idx[1]] = np.array([255, 0, 0])
+        obs[agent_idx[0], agent_idx[1]] = np.array([255, 0, 0], dtype=np.uint8)
         return obs
 
     def update_states(self, action):
@@ -120,22 +160,15 @@ class NavEnv(gym.Env):
             high=self.size,
             size=self.pos_dim
         )
-        #        self.vel = np.random.uniform(
-        #            low=-self.size,
-        #            high=self.size,
-        #            size=self.vel_dim
-        #        )
+
         self.vel = np.zeros(self.vel_dim)
 
         # Keep track of the position in the current episode
         self.pos_list = [self.pos.copy()]
 
         # Step count since episode start
-        self.step_count = 0
+        self.step_count: int = 0
 
-        #        # Observation is the reward map with the agent position
-        #        obs = self.preprocess_obs(self.pos)
-        # Observations are the position and velocity
         obs = np.concatenate((self.pos, self.vel))
 
         return obs
@@ -197,16 +230,16 @@ class NavEnv(gym.Env):
         y = np.linspace(-self.size, self.size, num=num)
         # TODO: vectorized this computation
         X, Y = np.meshgrid(x, y)
-        Z = np.empty((num, num))
-        for i in range(num):
-            for j in range(num):
-                Z[i, j] = self.eval_gaussian(np.array([X[i, j], Y[i, j]]))
+        Z = self.eval_loop(X, Y, num)
+
         # rescale values to [0, 255]
         self.reward_min, self.reward_max = np.min(Z), np.max(Z)
         Z = ((Z - self.reward_min) / (self.reward_max - self.reward_min) * 255).astype(np.uint8)
+        self.Z = Z
+
         # convert grayscale to rgb by stacking three channels
         self.reward_map = np.stack((Z, Z, Z), axis=-1)
-        self.Z = Z
+
 
     def eval_gaussian(self, x):
         """
@@ -222,13 +255,11 @@ class NavEnv(gym.Env):
         Evaluate the reward at the current position x
         """
         reward = self.eval_gaussian(x)
-        reward_range = (-20, 0)
 
         # shape reward to [-1, 1] to assist learning
         # reward = (reward - self.reward_min) / (self.reward_max - self.reward_min) * 2 - 1
-        # shape reward to [-1, 0] to assist learning
         reward_std = (reward - self.reward_min) / (self.reward_max - self.reward_min)
-        min_val, max_val = reward_range
+        min_val, max_val = self.reward_range
         scale_reward = reward_std * (max_val - min_val) + min_val
         return scale_reward
 
@@ -240,3 +271,10 @@ class NavEnv(gym.Env):
     def get_idx(self, pos):
         idx = ((pos + self.size) / (2 * self.size) * (self.resolution - 1)).astype(int)
         return idx
+
+    def eval_loop(self, X, Y, num):
+        Z = np.empty((num, num))
+        for i in range(num):
+            for j in range(num):
+                Z[i, j] = self.eval_gaussian(np.array([X[i, j], Y[i, j]]))
+        return Z

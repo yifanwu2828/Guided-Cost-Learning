@@ -128,6 +128,9 @@ def main():
 
     parser.add_argument('--ep_len', type=int)
     parser.add_argument('--seed', type=int, default=1)
+    parser.add_argument('--samp_recent', action='store_true', default=False,
+                        help='sample random data or recent data from D_samp in train reward'
+                        )
     parser.add_argument('--no_gpu', '-ngpu', action='store_true')
     parser.add_argument('--which_gpu', '-gpu_id', default=0)
     parser.add_argument('--video_log_freq', type=int, default=-1)  # -1 not log video
@@ -161,9 +164,9 @@ def main():
     # path of pretrain model
     path = os.getcwd()
     params["no_gpu"] = True
-    params["expert_policy"] = "../model/ppo_nav_env"
+    params["expert_policy"] = "../model/sac_nav_env"
     params["ep_len"] = 100
-
+    params['samp_recent'] = False
 
     '''Outer Training Loop (Algorithm 1: Guided cost learning)'''
     # Number of iteration of outer training loop (Algorithm 1)
@@ -177,7 +180,7 @@ def main():
     # Number of reward updates per iteration in Algorithm 2
     params["num_reward_train_steps_per_iter"] = 10  # 10 K_r
     # Number of expert rollouts to sample from replay buffer per reward update
-    params["train_demo_batch_size"] = 200
+    params["train_demo_batch_size"] = 100
     # Number of policy rollouts to sample from replay buffer per reward update
     params["train_sample_batch_size"] = 100  # 100
 

@@ -1,3 +1,4 @@
+import argparse
 import sys
 import time
 
@@ -7,13 +8,27 @@ from PIL import Image
 import imageio
 import torch
 import gym
-from stable_baselines3 import PPO
+from stable_baselines3 import PPO, SAC
 from tqdm import tqdm
+from dask.distributed import Client
 
-
-from gcl.infrastructure.utils import tic
+from gcl.infrastructure.utils import tic, toc
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--render', '-r', action='store_true', default=False)
+    parser.add_argument('--video', '-v', action='store_true', default=False)
+    parser.add_argument('--videoPath', '-path', type=str, default='test_env.gif')
+    args = parser.parse_args()
+    params = vars(args)
+
+    RENDER = params["render"]
+    VIDEO = params["video"]
+    PATH = params["videoPath"]
+
+    RENDER_RGB = False
+    if VIDEO:
+        RENDER_RGB = VIDEO
     #######################################################################################
     #######################################################################################
     # Set seed
@@ -23,7 +38,8 @@ if __name__ == '__main__':
     #######################################################################################
     # load model
     start_load = tic("############ Load Model ############")
-    demo_model = PPO.load("../model/ppo_nav_env")
+    # demo_model = PPO.load("../model/ppo_nav_env")
+    demo_model = SAC.load("../model/sac_nav_env")
 
     # fname2 = "../model/test_gcl_policy_GPU.pth"
     # policy_model = torch.load(fname2)
@@ -34,45 +50,38 @@ if __name__ == '__main__':
     env.seed(SEED)
     #######################################################################################
     np.set_printoptions(threshold=sys.maxsize)
-    # print(env.Z)
-    # print(env.Z.shape)
-
-    rew_map = env.reward_map.copy()
-
-    a = rew_map[:,:,0]
-    b = np.where(a > 70, 1, 0)
-    plt.imshow(b,)
-    plt.show()
-
-    plt.imshow(rew_map)
-    plt.show()
-
 
     # map_res = cv2.resize(map, dsize=(64*10, 64*10), interpolation=cv2.INTER_CUBIC)
     # cv2.imshow("reward map", map_res)
     # k = cv2.waitKey(0)
     # cv2.destroyAllWindows()
-    visual=True
-    if visual:
-        images = []
 
-        obs = env.reset()
-        t = -1
-        for i in tqdm(range(300)):
-            action, _states = demo_model.predict(obs, deterministic=True)
-            obs, reward, done, info = env.step(action)
-            env.render(mode='human')
+    images = []
+    obs = env.reset()
+    t = -1
+    for i in tqdm(range(300)):
+        action, _states = demo_model.predict(obs, deterministic=True)
+        obs, reward, done, info = env.step(action)
+        if RENDER:
+            img_array = env.render(mode='human')
+            if VIDEO:
+                img = Image.fromarray(img_array, 'RGB')
+                img = img.resize((500, 500))
+                images.append(img)
+            time.sleep(0.1)
+
+        elif RENDER_RGB and VIDEO:
             img_array = env.render(mode='rgb_array')
             img = Image.fromarray(img_array, 'RGB')
             img = img.resize((500, 500))
             images.append(img)
-            time.sleep(0.1)
-            if done:
-                obs = env.reset()
-                print(f"itr:{i}, step:{int(i - t)} -> done :{done}")
-                t = i
-        env.close()
-        PATH = 'test_env.gif'
-        SAVE=False
-        if SAVE:
-            imageio.mimsave(PATH, images)
+        if done:
+            obs = env.reset()
+            print(f"itr:{i}, step:{int(i - t)} -> done :{done}")
+            t = i
+    env.close()
+
+
+    if VIDEO:
+        imageio.mimsave(PATH, images)
+    toc(start_load)

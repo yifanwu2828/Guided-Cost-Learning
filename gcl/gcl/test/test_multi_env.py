@@ -19,7 +19,7 @@ if __name__ == '__main__':
     parser.add_argument('--render', '-r', action='store_true', default=False)
     parser.add_argument('--plot', '-plt', action='store_true', default=False)
     parser.add_argument('--video', '-v', action='store_true', default=False)
-    parser.add_argument('--videoPath', '-path', type=str, default='test_movie.gif')
+    parser.add_argument('--videoPath', '-path', type=str, default='test_multimovie.gif')
     args = parser.parse_args()
     params = vars(args)
     #######################################################################################
@@ -33,7 +33,11 @@ if __name__ == '__main__':
     start_load = tic("############ Load Model ############")
     demo_model = SAC.load("../model/sac_nav_env")
 
-    fname2 = "../model/test_gcl_policy_77.pth"
+    fname1 = "../model/test_gcl_reward_GPU.pth"
+    reward_model = torch.load(fname1)
+    reward_model.eval()
+
+    fname2 = "../model/test_gcl_policy_GPU.pth"
     policy_model = torch.load(fname2)
     policy_model.eval()
     #######################################################################################
@@ -46,8 +50,9 @@ if __name__ == '__main__':
     #######################################################################################
     np.set_printoptions(threshold=sys.maxsize)
     #######################################################################################
-    all_log = {'agent_rews': [], 'agent_done': [], 'agent_eps_return': [], 'agent_total_return': [],
-               'demo_rews': [], 'demo_done': [], 'demo_eps_return': [], 'demo_total_return': [],
+    all_log = {'agent_rews': [], 'agent_done': [], 'agent_eps_return': [], 'agent_total_return': [], 'agent_ac': [],
+               'demo_rews': [], 'demo_done': [], 'demo_eps_return': [], 'demo_total_return': [], 'demo_ac': [],
+               'agent_mlp_rews': [], 'demo_mlp_rews': [],
                "winner": []
                }
 
@@ -62,27 +67,52 @@ if __name__ == '__main__':
     if VIDEO:
         RENDER_RGB = VIDEO
 
+    a_min, a_max = [-1, 1]
     demo_obs, agent_obs = env.reset()
-    n_step = range(500)
+    n_step = range(300)
     for t in tqdm(n_step):
         demo_action, _ = demo_model.predict(demo_obs, deterministic=True)
         agent_action, log_prob = policy_model.get_action(agent_obs)
         agent_action = agent_action[0]
+
+        demo_mlp_rew = float(reward_model(torch.from_numpy(demo_obs).float(),
+                                          torch.from_numpy(demo_action).float())
+                             .detach().numpy()
+                             )
+
+        agent_mlp_rew = float(reward_model(torch.from_numpy(agent_obs).float(),
+                                           torch.from_numpy(agent_action).float())
+                              .detach().numpy()
+                              )
+
+        all_log['demo_mlp_rews'].append(demo_mlp_rew)
+        all_log['agent_mlp_rews'].append(agent_mlp_rew)
+
+
+
+
+        all_log['demo_ac'].append(np.clip(demo_action, a_min, a_max))
+        all_log['agent_ac'].append(np.clip(agent_action, a_min, a_max))
 
         obs, reward, done, info = env.step(demo_action, agent_action)
         demo_obs, agent_obs = obs
         demo_rew, agent_rew = reward
 
         demo_done, agent_done = done
-        all_log['demo_rews'].append(demo_rew)
-        all_log['agent_rews'].append(agent_rew)
+        if not demo_done:
+            all_log['demo_rews'].append(demo_rew)
+            all_log['agent_rews'].append(0)
+
+        if not agent_done:
+            all_log['demo_rews'].append(0)
+            all_log['agent_rews'].append(agent_rew)
 
         if RENDER:
             img_array = env.render(mode='human')
             img = Image.fromarray(img_array, 'RGB')
             images.append(img)
             time.sleep(0.1)
-            pass
+
         elif RENDER_RGB and VIDEO:
             img_array = env.render(mode='rgb_array')
             img = Image.fromarray(img_array, 'RGB')
@@ -121,14 +151,38 @@ if __name__ == '__main__':
     env.close()
 
     # save a Gif
-    start_save = tic("##### Saving Gif  #####")
     if VIDEO:
+        start_save = tic("##### Saving Gif  #####")
         imageio.mimsave(PATH, images)
-    toc(start_save, "Finishing saving GIF")
+        toc(start_save, "Finishing saving GIF")
 
     plt.figure()
     plt.plot(all_log['winner'])
     plt.title("Winner of each round, 0: demo done first, 1: agent done first")
+    plt.show(block=True)
+
+    demo_ac0 = [ac[0] for ac in all_log['demo_ac']]
+    demo_ac1 = [ac[1] for ac in all_log['demo_ac']]
+    agent_ac0 = [ac[0] for ac in all_log['agent_ac']]
+    agent_ac1 = [ac[1] for ac in all_log['agent_ac']]
+
+    fig, axs = plt.subplots(2)
+    fig.suptitle('Action')
+    axs[0].plot(demo_ac0, label='demo')
+    axs[0].plot(agent_ac0, label='agent')
+    axs[1].plot(demo_ac1, label='demo')
+    axs[1].plot(agent_ac1, label='agent')
+
+    axs[0].legend()
+    axs[1].legend()
+    plt.show(block=True)
+
+
+    plt.figure()
+    plt.plot(all_log['demo_mlp_rews'], label='demo_mlp_rews')
+    plt.plot(all_log['agent_mlp_rews'], label='agent_mlp_rews')
+    plt.legend()
+    plt.title("Learning Reward")
     plt.show(block=True)
 
     plt.figure()
