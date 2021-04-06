@@ -170,7 +170,7 @@ def main():
 
     '''Outer Training Loop (Algorithm 1: Guided cost learning)'''
     # Number of iteration of outer training loop (Algorithm 1)
-    params['n_iter'] = 77  # sweet spot 400
+    params['n_iter'] = 200  # sweet spot 400
     # Number of expert rollouts to add to demo replay buffer before outer loop
     params['demo_size'] = 200
     # number of current policy rollouts add to sample buffer per itr in outer training loop

@@ -5,7 +5,6 @@ import numpy as np
 import torch
 from torch import nn
 from torch import optim
-from dask import delayed
 from gcl.infrastructure import pytorch_util as ptu
 warnings.filterwarnings('always')
 
@@ -57,6 +56,9 @@ class MLPReward(nn.Module):
         )
         print("MLP REW", ptu.device)
         # self.mlp.to(ptu.device)
+
+    #####################################################
+    #####################################################
 
     def initialize_weights(self):
         """weight initialization"""
