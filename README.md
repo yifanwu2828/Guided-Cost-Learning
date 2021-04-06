@@ -1,11 +1,11 @@
-# Inverse-Reinforcement-Learning
-![GitHub repo size](https://img.shields.io/github/repo-size/yifanwu2828/Inverse-Reinforcement-Learning)
+# Model-based Inverse-Reinforcement-Learning
 
-# Implementation of [Guided Cost Learning (GCL)](https://arxiv.org/pdf/1603.00448.pdf)
+
+## Implementation of [Guided Cost Learning (GCL)](https://arxiv.org/pdf/1603.00448.pdf)
 ![GitHub repo size](https://img.shields.io/github/repo-size/yifanwu2828/Inverse-Reinforcement-Learning)
 ![GitHub contributors](https://img.shields.io/github/contributors/yifanwu2828/Inverse-Reinforcement-Learning)
 ![GitHub last commit](https://img.shields.io/github/last-commit/yifanwu2828/Inverse-Reinforcement-Learning)
-# TODO
+## TODO
 - [x] Set up 2D navigation environment
 - [x] Add rgb_array render mode in 2D navigation environment
 - [x] Set up RL agent (PPO, SAC) as expert policy
@@ -15,7 +15,7 @@
 - [x] Check expert policy and ensure it doesn't pass high-cost regions
 - [x] Clear TODOs in code 
 
-# Installation
+## Installation
 1. Install Stable baselines 3
 ```bash
 pip install stable-baselines3
@@ -25,7 +25,7 @@ pip install stable-baselines3
 pip install -e .
 ```
 
-# Usage
+## Usage
 1. Train an RL agent as the expert
 ```bash
 cd scripts
