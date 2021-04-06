@@ -93,11 +93,7 @@ if __name__ == '__main__':
         scaler = preprocessing.MinMaxScaler(feature_range=env.reward_range)  # (-20, 0)
         scaler.fit(mlp_reward.reshape(-1, 1))
         scaled_reward = scaler.transform(mlp_reward.reshape(-1, 1))
-        f, ax = plt.subplots()
-        ax.scatter(range(mlp_reward.size), scaled_reward, label="mlp_reward")
-        ax.scatter(range(true_reward.size), true_reward, label="true_reward")
-        ax.legend()
-        plt.show()
+
         mean_mlp_reward, std_mlp_reward = get_metrics(scaled_reward)
         mean_true_reward, std_true_reward = get_metrics(true_reward)
         print(f"mean_mlp_reward:{mean_mlp_reward:.4f}, std_mlp_reward:{std_mlp_reward:.4f}")
@@ -109,17 +105,14 @@ if __name__ == '__main__':
 
     #######################################################################################
     if VERBOSE:
-        f1, ax1 = plt.subplots()
-        ax1.scatter(range(mlp_reward.size), mlp_reward, label="mlp_reward")
-        ax1.scatter(range(true_reward.size), true_reward, label="true_reward")
-        ax1.legend()
-        plt.show()
-
-        fig, ax2 = plt.subplots(2)
-        ax2[0].scatter(range(mlp_reward.size), mlp_reward, label="mlp_reward")
-        ax2[1].scatter(range(true_reward.size), true_reward, label="true_reward", color='#FF7433')
+        fig, ax2 = plt.subplots(3)
+        ax2[0].scatter(range(mlp_reward.size), scaled_reward, label="mlp_reward")
+        ax2[0].scatter(range(true_reward.size), true_reward, label="true_reward")
         ax2[0].legend()
+        ax2[1].scatter(range(mlp_reward.size), mlp_reward, label="mlp_reward")
+        ax2[2].scatter(range(true_reward.size), true_reward, label="true_reward", color='#FF7433')
         ax2[1].legend()
+        ax2[2].legend()
         plt.show(block=True)
 
     #######################################################################################
