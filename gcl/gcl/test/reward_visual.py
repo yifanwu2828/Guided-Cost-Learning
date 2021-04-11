@@ -136,7 +136,7 @@ if __name__ == '__main__':
     env.seed(SEED)
     a_min, a_max = [-1, 1]
     demo_obs, agent_obs = env.reset()
-    n_step = range(300)
+    n_step = range(1000)
     for t in tqdm(n_step):
         demo_action, _ = demo_model.predict(demo_obs, deterministic=True)
         agent_action, log_prob = policy_model.get_action(agent_obs)
