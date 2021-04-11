@@ -10,7 +10,6 @@ import torch
 import gym
 from stable_baselines3 import PPO, SAC
 from tqdm import tqdm
-from dask.distributed import Client
 
 from gcl.infrastructure.utils import tic, toc
 
