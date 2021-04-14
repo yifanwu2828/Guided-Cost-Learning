@@ -1,10 +1,16 @@
 from typing_extensions import TypedDict
 from typing import Tuple, List, Union, Optional
 import time
+import warnings
+import random
+
 import numpy as np
 import torch
 import gym
-import gym_nav
+try:
+    import gym_nav
+except ImportError:
+    pass
 
 from gcl.agents.base_agent import BaseAgent
 
@@ -41,6 +47,35 @@ def toc(t_start: float, name: Optional[str] = "Operation", ftime=False) -> None:
         print(f'\n############ {name} took: {str(duration)} ############\n')
     else:
         print(f'\n############ {name} took: {sec:.4f} sec. ############\n')
+
+
+############################################
+############################################
+
+def set_random_seed(seed: int = 42, deterministic: bool = False):
+    """
+    Seed the different random generators.
+
+    :param seed:
+    :param deterministic:
+    """
+    # Seed python RNG
+    random.seed(seed)
+    # Seed numpy RNG
+    np.random.seed(seed)
+    # seed the RNG for all devices (both CPU and CUDA)
+    torch.random.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+
+    if deterministic:
+        # Deterministic operations for CuDNN, it may impact performances
+        torch.backends.cudnn.deterministic = True
+        # Fix use on algorithm instead of randomly searching best one
+        torch.backends.cudnn.benchmark = False
+        raise UserWarning("WARNING: Deterministic operations for CuDNN, it may impact performances")
+
+
+########################################################################################
 
 
 ########################################################################################
@@ -88,8 +123,9 @@ def sample_trajectory(env,
                       policy,
                       agent,
                       max_path_length: int,
-                      render=False, render_mode: str = 'rgb_array',
-                      expert=False, evaluate=False, device='cpu',
+                      render: bool = False, render_mode: str = 'rgb_array',
+                      expert: bool = False, evaluate: bool = False, device='cpu',
+                      deterministic: bool = True,
                       ) -> PathDict:
     """
     Sample a single trajectory and returns infos
@@ -102,6 +138,7 @@ def sample_trajectory(env,
     :param expert: sample from expert policy if True
     :param evaluate:
     :param device: 'cpu' or 'cuda'
+    :param deterministic: Whether or not to return deterministic actions, else stochastic
     :return: PathDict
     """
     assert isinstance(max_path_length, int)
@@ -109,6 +146,7 @@ def sample_trajectory(env,
 
     # initialize env for the beginning of a new rollout
     ob = env.reset()
+    last_states = None
 
     # init vars
     obs: List[np.ndarray] = []
@@ -130,15 +168,24 @@ def sample_trajectory(env,
                     image_obs.append(env.render(mode=render_mode))
             if 'human' in render_mode:
                 env.render(mode=render_mode)
-                # TODO: implement this in NAV_ENV
-                # time.sleep(env.model.opt.timestep)
+                if hasattr(env, 'model'):
+                    try:
+                        time.sleep(env.model.opt.timestep)
+                    except AttributeError:
+                        warnings.warn(f"No attribute name 'model' found in {env.__str__}", UserWarning, stacklevel=2)
+                        time.sleep(0.1)
+                else:
+                    time.sleep(0.1)
 
         # use the most recent ob to decide what to do
         obs.append(ob)
         if expert:
             # stable_baselines3 implementation may need to change this
             # --- check this in every env
-            ac, _ = policy.predict(ob, deterministic=True)
+            ac, state = policy.predict(ob, state=last_states, deterministic=deterministic)
+
+            # The last states (can be None, used in recurrent policies)
+            last_states = state
 
             # expert demonstrations assume log_prob = 0, convert to np array to keep consistency
             log_prob = np.zeros(1, dtype=np.float32)
