@@ -4,7 +4,9 @@ from typing import List, Dict, Tuple, Sequence, Optional
 
 import gym
 import numpy as np
+import copy
 import torch
+import pickle
 from tqdm import tqdm
 
 from gcl.infrastructure import pytorch_util as ptu, utils
@@ -52,22 +54,43 @@ class RL_Trainer(object):
         self.env.seed(seed)
 
         # Maximum length for episodes
-        self.params['ep_len'] = self.env.max_steps
+        try:
+            self.params['ep_len'] = self.params['ep_len'] or self.env.spec.max_episode_steps
+        except AttributeError:
+            self.params['ep_len']: int = self.env._max_episode_steps  # Access to a protected member
+
         global MAX_VIDEO_LEN
         MAX_VIDEO_LEN = self.params['ep_len']
 
-        # Is this env continuous, or self.discrete?
-        discrete = isinstance(self.env.action_space, gym.spaces.Discrete)
+        # Observation Dimension
+        # Are the observations in Dict?
+        if isinstance(self.env.observation_space, gym.spaces.dict.Dict):
+            # TODO adjust ob_dim for goal_env
+            ob_dim: int = np.sum([self.env.observation_space[key].shape[0] for key in self.env.observation_space])
+
+        # Are the observation continuous?
+        elif isinstance(self.env.observation_space, gym.spaces.box.Box):
+            # Are the observations images?
+            is_img: bool = len(self.env.observation_space.shape) > 2
+            ob_dim: int = self.env.observation_space.shape if is_img else self.env.observation_space.shape[0]
+
+        # Are the observation discrete?
+        elif isinstance(self.env.observation_space, gym.spaces.Discrete):
+            ob_dim: int = self.env.observation_space.n
+        else:
+            raise ValueError("env.observation_space type not found")
+
+        ########################################
+        ########################################
+        # Action Dimension
+        # Is this env continuous, or discrete?
+        discrete: bool = isinstance(self.env.action_space, gym.spaces.Discrete)
         self.params['agent_params']['discrete'] = discrete
 
-        # Are the observations images?
-        is_img = len(self.env.observation_space.shape) > 2
-
-        # Observation and action sizes
-        ob_dim = self.env.observation_space.shape if is_img else self.env.observation_space.shape[0]
-        ac_dim = self.env.action_space.n if discrete else self.env.action_space.shape[0]
+        ac_dim: int = self.env.action_space.n if discrete else self.env.action_space.shape[0]
         self.params['agent_params']['ac_dim'] = ac_dim
-        self.params['agent_params']['ob_dim'] = ob_dim
+        # -3 for goal env
+        self.params['agent_params']['ob_dim'] = ob_dim-3
 
         # simulation timestep, will be used for video saving
         # Frame Rate

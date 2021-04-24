@@ -1,10 +1,18 @@
 import argparse
 import os
 import time
+from pprint import pprint
 
 import numpy as np
 import torch
 import matplotlib.pyplot as plt
+
+try:
+    from icecream import ic
+    from icecream import install
+    install()
+except ImportError:  # Graceful fallback if IceCream isn't installed.
+    ic = lambda *a: None if not a else (a[0] if len(a) == 1 else a)  # noqa
 
 from gcl.infrastructure.gcl_trainer import GCL_Trainer
 from gcl.agents.gcl_agent import GCL_Agent
@@ -73,11 +81,11 @@ def removeOutliers(x, outlierConstant=1.5) -> list:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--env_name', '-env', type=str, default='NavEnv-v0')
-    parser.add_argument('--exp_name', '-exp', type=str, default='nav_env_irl')
+    parser.add_argument('--env_name', '-env', type=str, default='FetchReach-v1')
+    parser.add_argument('--exp_name', '-exp', type=str, default='fetch_env_irl')
 
     # relative to where you're running this script from
-    parser.add_argument('--expert_policy', '-epf', type=str, default='ppo_nav_env')
+    parser.add_argument('--expert_policy', '-epf', type=str, default="../model/her_FetchReach_v1_env")
     parser.add_argument('--expert_data', '-ed', type=str, default='')
 
     # PG setting
@@ -120,7 +128,7 @@ def main():
         help='Number of transition steps to sample from current policy for evaluation'
     )
 
-    parser.add_argument('--discount', type=float, default=1.0)
+    parser.add_argument('--discount', type=float, default=0.99)
     parser.add_argument('--n_layers', '-l', type=int, default=2)
     parser.add_argument('--size', '-s', type=int, default=64)
     parser.add_argument('--output_size', type=int, default=20)
@@ -162,15 +170,15 @@ def main():
     ###################
     print("##### PARAM ########")
     # path of pretrain model
-    path = os.getcwd()
-    params["no_gpu"] = True
-    params["expert_policy"] = "../model/sac_nav_env"
-    params["ep_len"] = 100
-    params['samp_recent'] = False
+    params["no_gpu"] = True  # False
+    params["expert_policy"] = "../model/her_FetchReach_v1_env"
+    # TODO: investigate ep_len
+    params["ep_len"] = 50
+    params['samp_recent'] = True  # False
 
     '''Outer Training Loop (Algorithm 1: Guided cost learning)'''
     # Number of iteration of outer training loop (Algorithm 1)
-    params['n_iter'] = 401  # sweet spot 400
+    params['n_iter'] = 400
     # Number of expert rollouts to add to demo replay buffer before outer loop
     params['demo_size'] = 200
     # number of current policy rollouts add to sample buffer per itr in outer training loop
@@ -180,7 +188,7 @@ def main():
     # Number of reward updates per iteration in Algorithm 2
     params["num_reward_train_steps_per_iter"] = 10  # 10 K_r
     # Number of expert rollouts to sample from replay buffer per reward update
-    params["train_demo_batch_size"] = 100
+    params["train_demo_batch_size"] = 200
     # Number of policy rollouts to sample from replay buffer per reward update
     params["train_sample_batch_size"] = 100  # 100
 
@@ -197,14 +205,21 @@ def main():
     # size of subset should be less than size of set
     # assert params["sample_size"] >= params["train_sample_batch_size"]
     assert params['demo_size'] >= params["train_demo_batch_size"]
-    assert params["train_batch_size"] >= params["train_sample_batch_size"] * params["ep_len"]
+    # assert params["train_batch_size"] >= params["train_sample_batch_size"] * params["ep_len"]
 
     params['discount'] = 0.99
-    params["learning_rate"] = 1e-3
     params['reward_to_go'] = True
     params['nn_baseline'] = True
     params['dont_standardize_advantages'] = False
-    print(params)
+
+    params["learning_rate"] = 1e-3
+
+    params['n_layers'] = 2
+    params['size'] = 52
+    # params['output_size'] = 20 # or 100
+    params['output_size'] = 100
+    # pprint(params)
+    ic(params)
 
 
     trainer = IRL_Trainer(params)
@@ -237,11 +252,11 @@ def main():
     # saving mlp Reward and Policy
     SAVE = True
     if SAVE:
-        fname1 = "../model/test_gcl_reward_GPU.pth"
+        fname1 = "../model/test_fetch_gcl_reward_GPU.pth"
         reward_model = trainer.gcl_trainer.agent.reward
         torch.save(reward_model, fname1)
 
-        fname2 = "../model/test_gcl_policy_GPU.pth"
+        fname2 = "../model/test_fetch_gcl_policy_GPU.pth"
         policy_model = trainer.gcl_trainer.agent.actor
         torch.save(policy_model, fname2)
 
@@ -249,7 +264,7 @@ def main():
 if __name__ == '__main__':
     print(torch.__version__)
     # set overflow warning to error instead
-    # np.seterr(all='raise')
+    np.seterr(all='raise')
     main()
     print("Done!")
 

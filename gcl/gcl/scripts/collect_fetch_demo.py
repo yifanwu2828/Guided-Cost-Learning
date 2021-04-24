@@ -3,14 +3,10 @@ from typing import List
 import sys
 import os
 import time
-try:
-    from icecream import ic
-    from icecream import install
-    install()
-except ImportError:  # Graceful fallback if IceCream isn't installed.
-    ic = lambda *a: None if not a else (a[0] if len(a) == 1 else a)  # noqa
+from icecream import ic
 
 import numpy as np
+import matplotlib.pyplot as plt
 import gym
 from gym.wrappers import FilterObservation, FlattenObservation
 
@@ -142,7 +138,8 @@ if __name__ == "__main__":
             env = gym.make(args.env)
             env.seed(args.seed)
             # env.reward_type = 'dense' # default sparse
-            env = FlattenObservation(FilterObservation(env, ['observation', 'desired_goal']))
+            # env = FlattenObservation(FilterObservation(env, ['observation', 'desired_goal']))
+            env = FlattenObservation(env)
             env = Monitor(env)
             model= ALGO[args.algo]("MlpPolicy", env, learning_rate=3e-4, verbose=1)
 
@@ -162,49 +159,83 @@ if __name__ == "__main__":
         model = ALGO[args.algo].load(fname)
 
     state = None
-    episode_reward = 0.0
-    episode_rewards, episode_lengths = [], []
-    ep_len = 0
-    # For HER, monitor success rate
-    successes = []
+    demo_log = {
+        "acs": [],
+        "obs": [],
+        # For HER, monitor success rate
+        "successes": [],
 
-    env = make_vec_env(env_id=args.env, n_envs=1, seed=args.seed)
+        "episode_rewards": [],
+        "episode_lengths": [],
+        "episode_successes": [],
+
+    }
+    episode_reward = 0.0
+    ep_len = 0
+
+    env = gym.make(args.env)
+    # env = FilterObservation(env, ['observation', 'desired_goal'])
+    env = FlattenObservation(env)
+
     obs = env.reset()
     for t in range(args.n):
 
         action, _ = model.predict(obs, deterministic=True)
         obs, reward, done, info = env.step(action)
 
+        demo_log['obs'].append(obs)
+        demo_log['acs'].append(action)
+        demo_log['successes'].append(info.get("is_success"))
+
         if not args.norender:
             env.render("human")
-        try:
-            time.sleep(env.model.opt.timestep)
-        except AttributeError:
             time.sleep(0.03)
-            pass
         episode_reward += float(reward)
         ep_len += 1
         # TODO: look into how to apply wrappers
-        if done or info[0]["is_success"] == 1:
-            print(info)
+        if done or info["is_success"] == 1:
+            ic(info)
             print(f"Episode Reward: {episode_reward:.2f}")
             print("Episode Length", ep_len)
-            episode_rewards.append(episode_reward)
-            episode_lengths.append(ep_len)
+            demo_log['episode_rewards'].append(episode_reward)
+            demo_log['episode_lengths'].append(ep_len)
             episode_reward = 0.0
             ep_len = 0
             state = None
             obs = env.reset()
 
         # Reset also when the goal is achieved when using HER
-        if done and info[0].get("is_success") == 1:
-            print("Success?", info[0].get("is_success", False))
+        if done and info.get("is_success") == 1:
+            print("Success?", info.get("is_success", False))
 
-            if info[0].get("is_success") is not None:
-                successes.append(info[0].get("is_success", False))
+            if info.get("is_success") is not None:
+                demo_log['successes'].append(info.get("is_success", False))
                 episode_reward, ep_len = 0.0, 0
     env.close()
     print("Done!!")
+
+    demo_ac0 = []
+    demo_ac1 = []
+    demo_ac2 = []
+    demo_ac3 = []
+    for ac in demo_log['acs']:
+        demo_ac0.append(ac[0])
+        demo_ac1.append(ac[1])
+        demo_ac2.append(ac[2])
+        demo_ac3.append(ac[3])
+
+    fig, axs = plt.subplots(4)
+    fig.suptitle('Action')
+    axs[0].plot(demo_ac0, label='demo')
+    axs[1].plot(demo_ac1, label='demo')
+    axs[2].plot(demo_ac2, label='demo')
+    axs[3].plot(demo_ac3, label='demo')
+    for i in range(len(axs)):
+        axs[i].legend()
+    plt.show(block=True)
+
+
+
 
     # Investigate env config
     '''
@@ -216,9 +247,8 @@ if __name__ == "__main__":
         observation: Box(-inf, inf, (10,), float32), shape: 10
     ) 
     '''
-    ic(type(env.observation_space))
-    ic(env.observation_space)
-    ic(env.observation_space.shape)
+    # ic(type(env.observation_space))
+    # ic(env.observation_space)
 
     '''
     acs:

@@ -1,6 +1,7 @@
 import argparse
 import os
 import time
+from pprint import pprint
 
 import numpy as np
 import torch
@@ -170,7 +171,7 @@ def main():
 
     '''Outer Training Loop (Algorithm 1: Guided cost learning)'''
     # Number of iteration of outer training loop (Algorithm 1)
-    params['n_iter'] = 401  # sweet spot 400
+    params['n_iter'] = 400  # sweet spot 77
     # Number of expert rollouts to add to demo replay buffer before outer loop
     params['demo_size'] = 200
     # number of current policy rollouts add to sample buffer per itr in outer training loop
@@ -204,7 +205,7 @@ def main():
     params['reward_to_go'] = True
     params['nn_baseline'] = True
     params['dont_standardize_advantages'] = False
-    print(params)
+    pprint(params)
 
 
     trainer = IRL_Trainer(params)
