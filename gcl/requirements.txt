@@ -49,9 +49,6 @@ stable-baselines3==0.10.0
 tensorboardX==2.1
 threadpoolctl==2.1.0
 toml==0.10.2
-torch==1.7.1+cu101
-torchaudio==0.7.2
-torchvision==0.8.2+cu101
 tqdm==4.59.0
 traitlets==5.0.5
 typed-ast==1.4.2
