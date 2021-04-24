@@ -5,6 +5,15 @@ import numpy as np
 import torch
 from torch import nn
 from torch import optim
+from torchsummary import summary
+
+try:
+    from icecream import ic
+    from icecream import install
+    install()
+except ImportError:  # Graceful fallback if IceCream isn't installed.
+    ic = lambda *a: None if not a else (a[0] if len(a) == 1 else a)  # noqa
+
 from gcl.infrastructure import pytorch_util as ptu
 warnings.filterwarnings('always')
 
@@ -29,10 +38,20 @@ class MLPReward(nn.Module):
             output_size=self.output_size,
             n_layers=self.n_layers,
             size=self.size,
-            activation='identity',
-            output_activation='relu'
+            activation='relu',
+            output_activation='relu',
+            # activation='relu',
+            # output_activation='identity',
         )
         self.initialize_weights()
+
+        ic("-----MLP REW------")
+        ic(self.ac_dim)
+        ic(self.ob_dim)
+        ic(self.n_layers)
+        ic(self.size)
+        ic(self.output_size)
+        ic(self.mlp)
 
         self.A = nn.Parameter(
             torch.ones(self.output_size, self.output_size, dtype=torch.float32, device=ptu.device)
@@ -55,7 +74,8 @@ class MLPReward(nn.Module):
             lr=self.learning_rate
         )
         print("MLP REW", ptu.device)
-        # self.mlp.to(ptu.device)
+        # To GPU if available
+        self.mlp.to(ptu.device)
 
     #####################################################
     #####################################################
@@ -170,6 +190,9 @@ class MLPReward(nn.Module):
         w = weights.sum(-1).item()
         if abs(w - 1) > 1e-2:
             warnings.warn(f'Sum of Weights larger than one:{w}')
+            print(w)
+            # assert abs(w - 1) > 1e-4
+
 
         demo_loss = torch.mean(demo_return)
         sample_loss = torch.sum(weights * sample_return)

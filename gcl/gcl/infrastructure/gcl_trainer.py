@@ -8,8 +8,14 @@ from typing import List, Optional, Tuple, Dict, Sequence, Any
 import gym
 import numpy as np
 import torch
-from stable_baselines3 import PPO, A2C, SAC
+from stable_baselines3 import PPO, A2C, SAC, HER
 from tqdm import tqdm
+try:
+    from icecream import ic
+    from icecream import install
+    install()
+except ImportError:  # Graceful fallback if IceCream isn't installed.
+    ic = lambda *a: None if not a else (a[0] if len(a) == 1 else a)  # noqa
 
 import gcl.infrastructure.pytorch_util as ptu
 from gcl.infrastructure.logger import Logger
@@ -48,7 +54,9 @@ class GCL_Trainer(object):
             use_gpu=self.params['use_gpu'],
             gpu_id=self.params['which_gpu']
         )
+        self.device = ptu.device
         print("Trainer", ptu.device)
+
         #############
         # ENV
         #############
@@ -58,20 +66,45 @@ class GCL_Trainer(object):
         self.env.seed(seed)
 
         # Maximum length for episodes
-        self.params['ep_len']: int = self.env.max_steps  # TODO: may need to change this for different ENV
+        try:
+            self.params['ep_len']: int = params['ep_len'] #self.env.max_steps  # TODO: may need to change this for different ENV
+        except AttributeError:
+            self.params['ep_len']: int = self.env._max_episode_steps  # Access to a protected member
+            # if need to change max ep_len try
+            # env.tags['wrapper_config.TimeLimit.max_episode_steps'] = 50
+        ic(self.params['ep_len'])
         global MAX_VIDEO_LEN
         MAX_VIDEO_LEN = self.params['ep_len']
 
-        # Is this env continuous, or self.discrete?
+        ########################################
+        ########################################
+
+        # Observation Dimension
+        # Are the observations in Dict?
+        if isinstance(self.env.observation_space, gym.spaces.dict.Dict):
+            # TODO adjust ob_dim for goal_env
+            ob_dim: int = np.sum([self.env.observation_space[key].shape[0] for key in self.env.observation_space])
+
+        # Are the observation continuous?
+        elif isinstance(self.env.observation_space, gym.spaces.box.Box):
+            # Are the observations images?
+            is_img: bool = len(self.env.observation_space.shape) > 2
+            ob_dim: int = self.env.observation_space.shape if is_img else self.env.observation_space.shape[0]
+
+        # Are the observation discrete?
+        elif isinstance(self.env.observation_space, gym.spaces.Discrete):
+            ob_dim: int = self.env.observation_space.n
+        else:
+            raise ValueError("env.observation_space type not found")
+
+
+        ########################################
+        ########################################
+        # Action Dimension
+        # Is this env continuous, or discrete?
         discrete: bool = isinstance(self.env.action_space, gym.spaces.Discrete)
         self.params['agent_params']['discrete'] = discrete
 
-        # Are the observations images?
-        is_img: bool = len(self.env.observation_space.shape) > 2
-
-        # Observation and action sizes
-        ob_dim: int = self.env.observation_space.shape if is_img else self.env.observation_space.shape[0]
-        print(ob_dim)
         ac_dim: int = self.env.action_space.n if discrete else self.env.action_space.shape[0]
         self.params['agent_params']['ac_dim'] = ac_dim
         self.params['agent_params']['ob_dim'] = ob_dim
@@ -93,6 +126,7 @@ class GCL_Trainer(object):
 
         # sample random data or recent data from D_samp in train reward
         self.samp_recent = params["samp_recent"]
+        ic(self.samp_recent)
 
         # Timer
         self.start_time = None
@@ -150,7 +184,8 @@ class GCL_Trainer(object):
         with torch.no_grad():
             demo_paths, _, _ = self.collect_demo_trajectories(expert_data, expert_policy,
                                                               ntrajs=self.params['demo_size'],
-                                                              render=False, verbose=True)
+                                                              render=False,
+                                                              verbose=True)
         self.agent.add_to_buffer(demo_paths, demo=True)
         print(f'\nNum of Demo rollouts collected:{self.agent.demo_buffer.num_paths}')
         print(f'Num of Demo transition steps collected:{self.agent.demo_buffer.num_data}')
@@ -219,7 +254,7 @@ class GCL_Trainer(object):
 
             # 5. Use D_{samp} to update cost c_{\theta}
             rew_start_time = time.time()
-            reward_logs = self.train_reward(recent=False)  # Algorithm 2
+            reward_logs = self.train_reward(recent=self.samp_recent)  # Algorithm 2
             # utils.toc(rew_start_time, "Update Reward")
 
             # 6. Update q_k(\tau) using D_{traj} and using GPS or PG
@@ -302,6 +337,7 @@ class GCL_Trainer(object):
 
         elif expert_policy:
             expert_policy_model = SAC.load(expert_policy)
+            # expert_policy_model = HER.load(expert_policy, env=self.env)
             print('\nRunning expert policy to collect demonstrations...')
 
             demo_paths = utils.sample_n_trajectories(
@@ -316,7 +352,8 @@ class GCL_Trainer(object):
             )
 
             if verbose:
-                utils.evaluate_model(self.params['env_name'], expert_policy_model, num_episodes=100)
+                # utils.evaluate_model(self.params['env_name'], expert_policy_model, num_episodes=100)
+                pass
         else:
             raise ValueError('Please provide either expert demonstrations or expert policy')
         return demo_paths, envsteps_this_batch, demo_video_paths
@@ -341,13 +378,14 @@ class GCL_Trainer(object):
         train_video_paths: Optional[List[PathDict]] = None
 
         print("\nCollecting sample trajectories to be used for training...")
-
+        ic(self.params['ep_len'])
         paths, envsteps_this_batch = utils.sample_trajectories(
             env=self.env,
             policy=collect_policy,
             agent=self.agent,
             min_timesteps_per_batch=batch_size,
             max_path_length=self.params['ep_len'],
+            device=self.device,
         )
         # print(f"\n--envsteps_this_batch: {envsteps_this_batch}")
 
@@ -545,7 +583,7 @@ class GCL_Trainer(object):
         if demo:
             demo_paths_len = len(self.agent.demo_buffer)
             demo_data_len = self.agent.demo_buffer.num_data
-            print(f"{'Demo_buffer_size:': <20} {demo_paths_len}, {demo_data_len}"
+            print(f"{'Demo_buffer_size:': <20} {demo_data_len}, {demo_paths_len}"
                   f"\t{'-> Average Demo ep_len:': ^25} {demo_data_len / demo_paths_len:>10.2f}")
         if samp:
             samp_paths_len = len(self.agent.sample_buffer)
@@ -587,7 +625,7 @@ class GCL_Trainer(object):
         training_logs.update(last_policy_log)
         training_logs.update(last_reward_log)
         '''training_logs'''
-        print("|------------------------|")
+        print("|----------------------------|")
         for key, value in training_logs.items():
             if verbose:
                 if isinstance(value, str):

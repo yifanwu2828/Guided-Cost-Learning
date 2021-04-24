@@ -9,6 +9,13 @@ from torch.nn import functional as F
 from torch import optim
 from torch import distributions
 
+try:
+    from icecream import ic
+    from icecream import install
+    install()
+except ImportError:  # Graceful fallback if IceCream isn't installed.
+    ic = lambda *a: None if not a else (a[0] if len(a) == 1 else a)  # noqa
+
 from gcl.infrastructure import utils
 import gcl.infrastructure.pytorch_util as ptu
 from gcl.policies.base_policy import BasePolicy
@@ -45,11 +52,11 @@ class MLPPolicy(BasePolicy, nn.Module, metaclass=abc.ABCMeta):
                                            output_size=self.ac_dim,
                                            n_layers=self.n_layers,
                                            size=self.size)
-            # self.logits_na.to(ptu.device)
+            # To GPU if available
+            self.logits_na.to(ptu.device)
 
             self.optimizer = optim.Adam(self.logits_na.parameters(),
-                                        self.learning_rate
-                                        )
+                                        self.learning_rate)
 
         # Continuous action space
         else:
@@ -58,15 +65,19 @@ class MLPPolicy(BasePolicy, nn.Module, metaclass=abc.ABCMeta):
             self.mean_net = ptu.build_mlp(input_size=self.ob_dim,
                                           output_size=self.ac_dim,
                                           n_layers=self.n_layers, size=self.size)
-            self.logstd = nn.Parameter(
-                torch.zeros(self.ac_dim, dtype=torch.float32)
+            self.logstd = nn.Parameter(                 # change no_gpu to train on cpu
+                torch.zeros(self.ac_dim, dtype=torch.float32, device=ptu.device)
             )
-            # self.mean_net.to(ptu.device)
-            # self.logstd.to(ptu.device)
+
+            # To GPU if available
+            self.mean_net.to(ptu.device)
+            self.logstd.to(ptu.device)
+
             self.optimizer = optim.Adam(
                 itertools.chain([self.logstd], self.mean_net.parameters()),
                 lr=self.learning_rate
             )
+
         # Baseline
         if nn_baseline:
             self.baseline = ptu.build_mlp(
@@ -75,7 +86,10 @@ class MLPPolicy(BasePolicy, nn.Module, metaclass=abc.ABCMeta):
                 n_layers=self.n_layers,
                 size=self.size,
             )
-            # self.baseline.to(ptu.device)
+
+            # To GPU if available
+            self.baseline.to(ptu.device)
+
             self.baseline_optimizer = optim.Adam(
                 self.baseline.parameters(),
                 self.learning_rate,
@@ -146,7 +160,16 @@ class MLPPolicyPG(MLPPolicy):
         # Init baseline_loss
         self.baseline_loss = nn.MSELoss()
         print("MLPPolicy", ptu.device)
+        ic("-----MLP Policy------")
+        ic(self.ac_dim)
+        ic(self.ob_dim)
+        ic(self.n_layers)
+        ic(self.size)
+        ic(self.nn_baseline)
 
+        self.mean_net.to(ptu.device)
+        self.baseline.to(ptu.device)
+        self.logstd.to(ptu.device)
 
     def __repr__(self):
         return f"{self.__class__.__name__}"

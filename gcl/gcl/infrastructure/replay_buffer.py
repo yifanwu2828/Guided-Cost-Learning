@@ -8,7 +8,7 @@ from gcl.infrastructure.utils import PathDict
 
 class ReplayBuffer(object):
 
-    def __init__(self, max_size=1000000):
+    def __init__(self, max_size=1_000_000):
         assert isinstance(max_size, int)
         self._max_size: int = max_size
 

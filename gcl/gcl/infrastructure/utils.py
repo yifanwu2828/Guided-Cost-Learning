@@ -1,5 +1,5 @@
 from typing_extensions import TypedDict
-from typing import Tuple, List, Union, Optional
+from typing import Tuple, List, Union, Optional, Dict
 import time
 import warnings
 import random
@@ -145,8 +145,9 @@ def sample_trajectory(env,
     assert max_path_length >= 0
 
     # initialize env for the beginning of a new rollout
-    ob = env.reset()
+    ob: Union[Dict, np.ndarray] = env.reset()
     last_states = None
+    goal: bool = False
 
     # init vars
     obs: List[np.ndarray] = []
@@ -173,12 +174,18 @@ def sample_trajectory(env,
                         time.sleep(env.model.opt.timestep)
                     except AttributeError:
                         warnings.warn(f"No attribute name 'model' found in {env.__str__}", UserWarning, stacklevel=2)
-                        time.sleep(0.1)
                 else:
                     time.sleep(0.1)
 
         # use the most recent ob to decide what to do
-        obs.append(ob)
+        # in goal env
+        if isinstance(ob, dict):
+            obs.append(extract_concat(ob))
+            goal=True
+        # non-goal env
+        else:
+            obs.append(ob)
+
         if expert:
             # stable_baselines3 implementation may need to change this
             # --- check this in every env
@@ -187,10 +194,12 @@ def sample_trajectory(env,
             # The last states (can be None, used in recurrent policies)
             last_states = state
 
-            # expert demonstrations assume log_prob = 0, convert to np array to keep consistency
+            # expert demonstrations assume prob = 1 -> log_prob = 0, convert to np array to keep consistency
             log_prob = np.zeros(1, dtype=np.float32)
 
         else:  # collected policy
+            if isinstance(ob, dict):
+                ob = extract_concat(ob)
             # query the policy's get_action function
             ac, log_prob = policy.get_action(ob)
             # unpack ac to remove unwanted type and dim --- check this in every env
@@ -199,14 +208,19 @@ def sample_trajectory(env,
         log_probs.append(log_prob)
 
         # take that action and record results
-        ob, rew, done, _ = env.step(ac)
+        ob, rew, done, info = env.step(ac)
         # record result of taking that action
         steps += 1
-        next_obs.append(ob)
+        if isinstance(ob, dict):
+            next_obs.append(extract_concat(ob))
+        else:
+            next_obs.append(ob)
 
         if expert or evaluate:  # should expert using true reward?
             rewards.append(rew)
         else:
+            if isinstance(ob, dict):
+                ob = extract_concat(ob)
             # not running on gpu which is slow
             rewards.append(
 
@@ -219,8 +233,14 @@ def sample_trajectory(env,
 
         # end the rollout if (rollout can end due to done, or due to max_path_length)
         rollout_done = 0
-        if done or steps >= max_path_length:  # Assume max_path_length == env.max_steps
-            rollout_done = 1  # HINT: this is either 0 or 1
+
+        if goal:
+            if (done and info.get("is_success", 0) == 1) or steps >= max_path_length:
+                rollout_done = 1
+        else:
+            if done or steps >= max_path_length:
+                rollout_done = 1  # HINT: this is either 0 or 1
+
         terminals.append(rollout_done)
 
         if rollout_done:
@@ -365,3 +385,9 @@ def unnormalize(data, mean, std):
 
 def mean_squared_error(a, b):
     return np.mean((a - b) ** 2)
+
+
+def extract_concat(obsDict: dict):
+    assert isinstance(obsDict, dict)
+    obs = np.concatenate([v for k, v in obsDict.items() if k !='achieved_goal'], axis=None, dtype=np.float32)
+    return obs
