@@ -7,6 +7,7 @@ from icecream import ic
 
 import numpy as np
 import matplotlib.pyplot as plt
+import mujoco_py
 import gym
 from gym.wrappers import FilterObservation, FlattenObservation
 
