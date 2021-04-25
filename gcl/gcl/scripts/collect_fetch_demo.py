@@ -12,10 +12,10 @@ import gym
 from gym.wrappers import FilterObservation, FlattenObservation
 
 from stable_baselines3 import HER, SAC, PPO, A2C, TD3, DDPG
-from stable_baselines3.her.goal_selection_strategy import GoalSelectionStrategy
-from stable_baselines3.common.vec_env import DummyVecEnv
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.env_util import make_vec_env
+from stable_baselines3.common.vec_env import DummyVecEnv
+from stable_baselines3.her.goal_selection_strategy import GoalSelectionStrategy
 from stable_baselines3.common.vec_env.obs_dict_wrapper import ObsDictWrapper
 
 from stable_baselines3.common.vec_env.base_vec_env import VecEnv, VecEnvStepReturn, VecEnvWrapper
@@ -72,6 +72,7 @@ if __name__ == "__main__":
     parser.add_argument("-env", help="environment ID", type=str, default="FetchReach-v1")
     parser.add_argument("-f",  help="Log folder", type=str, default="../model/")
     parser.add_argument("-algo", help="RL Algorithm", type=str, required=True)
+    parser.add_argument("-a", "--add", help="RL Algorithm with HER", type=str, default=None)
     parser.add_argument("-n",  help="number of timesteps", default=200, type=int)
     parser.add_argument("-seed",  help="number of timesteps", default=42, type=int)
     parser.add_argument("-train",  help="train new demo or load existed demo ", action='store_true', default=False)
@@ -103,8 +104,10 @@ if __name__ == "__main__":
     }
 
 
-
-    save_file = args.algo + '_' + "FetchReach_v1_env"
+    if args.add is not None:
+        save_file = args.algo + '_' + args.add + '_' + "FetchReach_v1_env"
+    else:
+        save_file = args.algo + '_' + "FetchReach_v1_env"
     fname = os.path.join(args.f, save_file)
 
     if args.train:
@@ -114,7 +117,11 @@ if __name__ == "__main__":
             env.seed(args.seed)
             # env.reward_type = 'dense' # default sparse
             env = Monitor(env)
-            model_class = ALGO["sac"]  # works also with SAC,DQN, DDPG and TD3
+            if args.add is not None:
+                model_class = ALGO[args.add]  # works also with SAC,DQN, DDPG and TD3
+                ic(model_class)
+            else:
+                model_class = ALGO["sac"]  # works also with SAC,DQN, DDPG and TD3
             # Available strategies (cf paper): future, final, episode
             goal_selection_strategy = params["goal_selection_strategy"]  # equivalent to GoalSelectionStrategy.FUTURE
             # If True the HER transitions will get sampled online
@@ -132,21 +139,31 @@ if __name__ == "__main__":
                 verbose=1,
                 max_episode_length=max_episode_length)
             # Train the model
-            model.learn(total_timesteps=20_000)
+            start = time.time()
+            model.learn(total_timesteps=200_000)
+            end = time.time() - start
+            ic(end)
+
         else:
             # env = make_vec_env(env_id=args.env, n_envs=1, seed=args.seed)
             # env = VecExtractDictObs(env, key_lst=['observation', 'desired_goal'])
             env = gym.make(args.env)
             env.seed(args.seed)
-            # env.reward_type = 'dense' # default sparse
-            # env = FlattenObservation(FilterObservation(env, ['observation', 'desired_goal']))
-            env = FlattenObservation(env)
+            env.reward_type = 'dense'  # default sparse
+            env = FlattenObservation(FilterObservation(env, ['observation', 'desired_goal']))
             env = Monitor(env)
-            model= ALGO[args.algo]("MlpPolicy", env, learning_rate=3e-4, verbose=1)
+            model= ALGO[args.algo]("MlpPolicy", env, learning_rate=1e-3, verbose=1)
 
             # Train the model
-            model.learn(total_timesteps=200_000)
-        model.save(fname)
+            start = time.time()
+            model.learn(total_timesteps=800_000)
+            end = time.time() - start
+            ic(end)
+
+        if args.algo == 'her' and args.add is not None:
+            model.save(fname)
+        else:
+            model.save(fname)
         del model
 
     ic(fname)
@@ -175,8 +192,9 @@ if __name__ == "__main__":
     ep_len = 0
 
     env = gym.make(args.env)
-    # env = FilterObservation(env, ['observation', 'desired_goal'])
-    env = FlattenObservation(env)
+    if args.algo != 'her':
+        env = FilterObservation(env, ['observation', 'desired_goal'])
+        env = FlattenObservation(env)
 
     obs = env.reset()
     for t in range(args.n):
@@ -194,7 +212,7 @@ if __name__ == "__main__":
         episode_reward += float(reward)
         ep_len += 1
         # TODO: look into how to apply wrappers
-        if done or info["is_success"] == 1:
+        if done and info["is_success"] == 1:
             ic(info)
             print(f"Episode Reward: {episode_reward:.2f}")
             print("Episode Length", ep_len)
@@ -227,15 +245,31 @@ if __name__ == "__main__":
 
     fig, axs = plt.subplots(4)
     fig.suptitle('Action')
-    axs[0].plot(demo_ac0, label='demo')
-    axs[1].plot(demo_ac1, label='demo')
-    axs[2].plot(demo_ac2, label='demo')
-    axs[3].plot(demo_ac3, label='demo')
+    axs[0].plot(demo_ac0, label='demo_pos_ctrl[0]')
+    axs[1].plot(demo_ac1, label='demo_pos_ctrl[1]')
+    axs[2].plot(demo_ac2, label='demo_pos_ctrl[3]')
+    axs[3].plot(demo_ac3, label='demo_gripper_ctrl')
     for i in range(len(axs)):
         axs[i].legend()
     plt.show(block=True)
 
 
+    '''def _set_action(self, action):
+        assert action.shape == (4,)
+        action = action.copy()  # ensure that we don't change the action outside of this scope
+        pos_ctrl, gripper_ctrl = action[:3], action[3]
+
+        pos_ctrl *= 0.05  # limit maximum change in position
+        rot_ctrl = [1., 0., 1., 0.]  # fixed rotation of the end effector, expressed as a quaternion
+        gripper_ctrl = np.array([gripper_ctrl, gripper_ctrl])
+        assert gripper_ctrl.shape == (2,)
+        if self.block_gripper:
+            gripper_ctrl = np.zeros_like(gripper_ctrl)
+        action = np.concatenate([pos_ctrl, rot_ctrl, gripper_ctrl])
+
+        # Apply action to simulation.
+        utils.ctrl_set_action(self.sim, action)
+        utils.mocap_set_action(self.sim, action)'''
 
 
     # Investigate env config
