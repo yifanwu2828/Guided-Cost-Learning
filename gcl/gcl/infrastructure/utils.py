@@ -7,6 +7,7 @@ import random
 import numpy as np
 import torch
 import gym
+
 try:
     import gym_nav
 except ImportError:
@@ -181,7 +182,7 @@ def sample_trajectory(env,
         # in goal env
         if isinstance(ob, dict):
             obs.append(extract_concat(ob))
-            goal=True
+            goal = True
         # non-goal env
         else:
             obs.append(ob)
@@ -225,8 +226,8 @@ def sample_trajectory(env,
             rewards.append(
 
                 agent.reward(
-                        observation=torch.from_numpy(ob).float().to(device),
-                        action=torch.from_numpy(ac).float().to(device),
+                    observation=torch.from_numpy(ob).float().to(device),
+                    action=torch.from_numpy(ac).float().to(device),
                 ).to('cpu').detach().numpy()
 
             )
@@ -251,11 +252,15 @@ def sample_trajectory(env,
 
 ########################################################################################
 
-def sample_trajectories(env, policy, agent: BaseAgent,
-                        min_timesteps_per_batch: int, max_path_length: int,
-                        render=False, render_mode: str = 'rgb_array',
-                        expert=False, evaluate=False, device='cpu',
-                        ) -> Tuple[List[PathDict], int]:
+def sample_trajectories(
+        env, policy, agent: BaseAgent,
+        min_timesteps_per_batch: int, max_path_length: int,
+        render=False,
+        render_mode: str = 'rgb_array',
+        expert=False,
+        evaluate=False,
+        device='cpu',
+) -> Tuple[List[PathDict], int]:
     """
     Sample rollouts until we have collected batch_size trajectories
     :param env: simulation environment
@@ -314,13 +319,15 @@ def sample_n_trajectories(env, policy, agent: BaseAgent,
     """
     assert isinstance(ntrajs, int) and isinstance(max_path_length, int)
     assert ntrajs > 0 and max_path_length > 0
-    ntraj_paths: List[PathDict] = [sample_trajectory(env, policy, agent,
-                                                     max_path_length,
-                                                     render=render, render_mode=render_mode,
-                                                     expert=expert, evaluate=evaluate,
-                                                     device=device,
-                                                     ) for _ in range(ntrajs)
-                                   ]
+    ntraj_paths: List[PathDict] = [
+        sample_trajectory(
+            env, policy, agent,
+            max_path_length,
+            render=render, render_mode=render_mode,
+            expert=expert, evaluate=evaluate,
+            device=device,
+        ) for _ in range(ntrajs)
+    ]
     return ntraj_paths
 
 
@@ -350,20 +357,38 @@ def Path(obs: List[np.ndarray], image_obs: Union[List[np.ndarray], List],
 ############################################
 ############################################
 
-def convert_listofrollouts(paths: List[PathDict]
-                           ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, List]:
+def convert_listofrollouts(
+        paths: List[PathDict]
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, List]:
     """
         Take a list of rollout dictionaries
         and return separate arrays,
         where each array is a concatenation of that array from across the rollouts
     """
-    observations = np.concatenate([path["observation"] for path in paths])
-    actions = np.concatenate([path["action"] for path in paths])
-    log_probs = np.concatenate([path["log_prob"] for path in paths])
-    next_observations = np.concatenate([path["next_observation"] for path in paths])
-    terminals = np.concatenate([path["terminal"] for path in paths])
-    concatenated_rewards = np.concatenate([path["reward"] for path in paths])
-    unconcatenated_rewards: List = [path["reward"] for path in paths]
+    observations, actions, log_probs = [], [], []
+    next_observations, terminals, unconcatenated_rewards = [], [], []
+    for path in paths:
+        observations.append(path["observation"])
+        actions.append(path["action"])
+        log_probs.append(path["log_prob"])
+        next_observations.append(path["next_observation"])
+        terminals.append(path["terminal"])
+        unconcatenated_rewards.append(path["reward"])
+
+    observations = np.concatenate(observations, dtype=np.float32)
+    actions = np.concatenate(actions, dtype=np.float32)
+    log_probs = np.concatenate(log_probs, dtype=np.float32)
+    next_observations = np.concatenate(next_observations, dtype=np.float32)
+    terminals = np.concatenate(terminals, dtype=np.float32)
+    concatenated_rewards = np.concatenate(unconcatenated_rewards, dtype=np.float32)
+
+    # observations = np.concatenate([path["observation"] for path in paths])
+    # actions = np.concatenate([path["action"] for path in paths])
+    # log_probs = np.concatenate([path["log_prob"] for path in paths])
+    # next_observations = np.concatenate([path["next_observation"] for path in paths])
+    # terminals = np.concatenate([path["terminal"] for path in paths])
+    # concatenated_rewards = np.concatenate([path["reward"] for path in paths])
+    # unconcatenated_rewards: List = [path["reward"] for path in paths]
     return observations, actions, log_probs, next_observations, terminals, concatenated_rewards, unconcatenated_rewards
 
 
@@ -389,5 +414,5 @@ def mean_squared_error(a, b):
 
 def extract_concat(obsDict: dict):
     assert isinstance(obsDict, dict)
-    obs = np.concatenate([v for k, v in obsDict.items() if k !='achieved_goal'], axis=None, dtype=np.float32)
+    obs = np.concatenate([v for k, v in obsDict.items() if k != 'achieved_goal'], axis=None, dtype=np.float32)
     return obs
