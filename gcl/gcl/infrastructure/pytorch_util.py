@@ -132,7 +132,10 @@ def init_gpu(use_gpu=True, gpu_id=0) -> None:
         print("Using GPU id {}".format(gpu_id))
     else:
         device = torch.device("cpu")
-        print("GPU not detected. Defaulting to CPU.")
+        if not torch.cuda.is_available():
+            print("GPU not detected. Defaulting to CPU.")
+        elif not use_gpu:
+            print("Set to use CPU.")
 
 
 def set_device(device: Union[torch.device, int]) -> None:
@@ -153,3 +156,22 @@ def exp_normalize(x):
     b = x.max()
     y = torch.exp(x - b)
     return y / y.sum()
+
+
+def initialize_weights(model: nn.Module):
+    """weight initialization"""
+    for m in model.modules():
+        if isinstance(m, nn.Conv2d):
+            nn.init.kaiming_uniform_(m.weight)
+            if m.bias is not None:
+                nn.init.constant_(m.bias, 0)
+
+        elif isinstance(m, nn.BatchNorm2d):
+            nn.init.constant_(m.weight, 1)
+            nn.init.constant_(m.bias, 0)
+
+        elif isinstance(m, nn.Linear):
+            nn.init.kaiming_uniform_(m.weight, mode='fan_in', nonlinearity='relu')
+            if m.bias is not None:
+                nn.init.constant_(m.bias, 0)
+    return model

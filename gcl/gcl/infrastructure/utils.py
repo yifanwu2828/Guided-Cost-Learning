@@ -252,15 +252,11 @@ def sample_trajectory(env,
 
 ########################################################################################
 
-def sample_trajectories(
-        env, policy, agent: BaseAgent,
-        min_timesteps_per_batch: int, max_path_length: int,
-        render=False,
-        render_mode: str = 'rgb_array',
-        expert=False,
-        evaluate=False,
-        device='cpu',
-) -> Tuple[List[PathDict], int]:
+def sample_trajectories(env, policy, agent: BaseAgent,
+                        min_timesteps_per_batch: int, max_path_length: int,
+                        render=False, render_mode: str = 'rgb_array',
+                        expert=False, evaluate=False, device='cpu',
+                        ) -> Tuple[List[PathDict], int]:
     """
     Sample rollouts until we have collected batch_size trajectories
     :param env: simulation environment
@@ -320,13 +316,13 @@ def sample_n_trajectories(env, policy, agent: BaseAgent,
     assert isinstance(ntrajs, int) and isinstance(max_path_length, int)
     assert ntrajs > 0 and max_path_length > 0
     ntraj_paths: List[PathDict] = [
-        sample_trajectory(
-            env, policy, agent,
-            max_path_length,
-            render=render, render_mode=render_mode,
-            expert=expert, evaluate=evaluate,
-            device=device,
-        ) for _ in range(ntrajs)
+        sample_trajectory(env,
+                          policy, agent,
+                          max_path_length,
+                          render=render, render_mode=render_mode,
+                          expert=expert, evaluate=evaluate,
+                          device=device,
+                          ) for _ in range(ntrajs)
     ]
     return ntraj_paths
 
@@ -344,14 +340,15 @@ def Path(obs: List[np.ndarray], image_obs: Union[List[np.ndarray], List],
     """
     if image_obs != []:
         image_obs = np.stack(image_obs, axis=0)
-    return {"observation": np.array(obs, dtype=np.float32),
-            "image_obs": np.array(image_obs, dtype=np.uint8),
-            "action": np.array(acs, dtype=np.float32),
-            "log_prob": np.array(log_probs, dtype=np.float32),
-            "reward": np.array(rewards, dtype=np.float32),
-            "next_observation": np.array(next_obs, dtype=np.float32),
-            "terminal": np.array(terminals, dtype=np.float32)
-            }
+    return {
+        "observation": np.array(obs, dtype=np.float32),
+        "image_obs": np.array(image_obs, dtype=np.uint8),
+        "action": np.array(acs, dtype=np.float32),
+        "log_prob": np.array(log_probs, dtype=np.float32),
+        "reward": np.array(rewards, dtype=np.float32),
+        "next_observation": np.array(next_obs, dtype=np.float32),
+        "terminal": np.array(terminals, dtype=np.float32)
+    }
 
 
 ############################################

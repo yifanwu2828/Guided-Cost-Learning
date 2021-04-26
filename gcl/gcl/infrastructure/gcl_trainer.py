@@ -3,9 +3,11 @@ import time
 from functools import lru_cache
 from collections import OrderedDict
 import itertools
+import copy
 from typing import List, Optional, Tuple, Dict, Sequence, Any
 
 import gym
+from gym.wrappers import FilterObservation, FlattenObservation
 import numpy as np
 import torch
 from stable_baselines3 import PPO, A2C, SAC, HER
@@ -64,6 +66,13 @@ class GCL_Trainer(object):
         # Make the gym environment
         self.env = gym.make(self.params['env_name'])
         self.env.seed(seed)
+
+        # Apply wrapper if specified
+        self.env_wrapper = params.get('env_wrapper', False)
+        if self.env_wrapper:
+            self.env.reward_type = 'dense'
+            self.env = FlattenObservation(FilterObservation(self.env, ['observation', 'desired_goal']))
+
 
         # Maximum length for episodes
         try:
@@ -378,15 +387,15 @@ class GCL_Trainer(object):
         train_video_paths: Optional[List[PathDict]] = None
 
         print("\nCollecting sample trajectories to be used for training...")
-        ic(self.params['ep_len'])
-        paths, envsteps_this_batch = utils.sample_trajectories(
-            env=self.env,
-            policy=collect_policy,
-            agent=self.agent,
-            min_timesteps_per_batch=batch_size,
-            max_path_length=self.params['ep_len'],
-            device=self.device,
-        )
+        with torch.no_grad():
+            paths, envsteps_this_batch = utils.sample_trajectories(
+                env=self.env,
+                policy=collect_policy,
+                agent=self.agent,
+                min_timesteps_per_batch=batch_size,
+                max_path_length=self.params['ep_len'],
+                device=ptu.device
+            )
         # print(f"\n--envsteps_this_batch: {envsteps_this_batch}")
 
         # if self.log_video:

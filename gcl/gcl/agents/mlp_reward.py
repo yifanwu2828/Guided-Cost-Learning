@@ -5,7 +5,6 @@ import numpy as np
 import torch
 from torch import nn
 from torch import optim
-from torchsummary import summary
 
 try:
     from icecream import ic
@@ -15,6 +14,7 @@ except ImportError:  # Graceful fallback if IceCream isn't installed.
     ic = lambda *a: None if not a else (a[0] if len(a) == 1 else a)  # noqa
 
 from gcl.infrastructure import pytorch_util as ptu
+
 warnings.filterwarnings('always')
 
 
@@ -43,7 +43,7 @@ class MLPReward(nn.Module):
             # activation='relu',
             # output_activation='identity',
         )
-        self.initialize_weights()
+        self.mlp = ptu.initialize_weights(self.mlp)
 
         ic("-----MLP REW------")
         ic(self.ac_dim)
@@ -80,26 +80,6 @@ class MLPReward(nn.Module):
     #####################################################
     #####################################################
 
-    def initialize_weights(self):
-        """weight initialization"""
-        for m in self.mlp.modules():
-            if isinstance(m, nn.Conv2d):
-                nn.init.kaiming_uniform_(m.weight)
-
-                if m.bias is not None:
-                    nn.init.constant_(m.bias, 0)
-
-            elif isinstance(m, nn.BatchNorm2d):
-                nn.init.constant_(m.weight, 1)
-                nn.init.constant_(m.bias, 0)
-
-            elif isinstance(m, nn.Linear):
-                nn.init.kaiming_uniform_(m.weight, mode='fan_in', nonlinearity='relu')
-                if m.bias is not None:
-                    nn.init.constant_(m.bias, 0)
-
-    #####################################################
-    #####################################################
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}"
@@ -116,6 +96,7 @@ class MLPReward(nn.Module):
                 "w": self.w,
             }, PATH
         )
+
     #####################################################
     #####################################################
 
@@ -192,7 +173,6 @@ class MLPReward(nn.Module):
             warnings.warn(f'Sum of Weights larger than one:{w}')
             print(w)
             # assert abs(w - 1) > 1e-4
-
 
         demo_loss = torch.mean(demo_return)
         sample_loss = torch.sum(weights * sample_return)

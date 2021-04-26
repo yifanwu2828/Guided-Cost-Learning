@@ -169,6 +169,8 @@ def main():
     # RUN TRAINING
     ###################
     print("##### PARAM ########")
+    # env wrapper
+    params['env_wrapper'] = True
     # path of pretrain model
     params["no_gpu"] = True  # False
     params["expert_policy"] = "../model/her_FetchReach_v1_env"

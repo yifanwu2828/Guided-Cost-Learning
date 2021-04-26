@@ -21,6 +21,46 @@ from stable_baselines3.common.vec_env.obs_dict_wrapper import ObsDictWrapper
 from stable_baselines3.common.vec_env.base_vec_env import VecEnv, VecEnvStepReturn, VecEnvWrapper
 
 
+class FixGoal(gym.Wrapper):
+    def __init__(self, env, pos=(1.3040752, 0.74440193, 0.66095406)):
+        super().__init__(env)
+        self.env = env
+        assert len(pos) == 3
+        if not isinstance(pos, np.ndarray):
+            pos = np.array(pos, dtype=np.float32)
+        self.pos = pos
+
+    def step(self, action):
+        observation, _, done, info = self.env.step(action)
+
+        achieved_goal = observation[3:6]
+        reward = self.compute_reward(achieved_goal, self.env.goal)
+
+        return observation, reward, done, info
+
+    @staticmethod
+    def goal_distance(goal_a, goal_b):
+        assert goal_a.shape == goal_b.shape
+        return np.linalg.norm(goal_a - goal_b, axis=-1)
+
+    def compute_reward(self, achieved_goal, goal, info=None):
+        d = self.goal_distance(achieved_goal, goal)
+        if self.env.reward_type == 'sparse':
+            return -(d > self.distance_threshold).astype(np.float32)
+        else:
+            return -d
+
+
+    def reset(self):
+        obs = self.env.reset()
+        self.env.goal[0] = self.pos[0]
+        self.env.goal[1] = self.pos[1]
+        self.env.goal[2] = self.pos[2]
+
+        # this one do not work
+        # self.env.goal = self.pos
+        obs[0:3] = self.env.goal.copy()
+        return obs
 
 
 class VecExtractDictObs(VecEnvWrapper):
@@ -66,16 +106,19 @@ class VecExtractDictObs(VecEnvWrapper):
         return np.linalg.norm(goal_a - goal_b, axis=-1)
 
 
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-env", help="environment ID", type=str, default="FetchReach-v1")
     parser.add_argument("-f",  help="Log folder", type=str, default="../model/")
     parser.add_argument("-algo", help="RL Algorithm", type=str, required=True)
     parser.add_argument("-a", "--add", help="RL Algorithm with HER", type=str, default=None)
-    parser.add_argument("-n",  help="number of timesteps", default=200, type=int)
+    parser.add_argument(
+        "-rt", "--rewardType", type=str, default='dense',
+        help="Reward type 'sparse' or 'dense' used in non-HER training ", )
+    parser.add_argument("-n",  help="number of timesteps", default=500, type=int)
     parser.add_argument("-seed",  help="number of timesteps", default=42, type=int)
-    parser.add_argument("-train",  help="train new demo or load existed demo ", action='store_true', default=False)
+    parser.add_argument("-train", action='store_true', default=False,
+                        help="train new demo if True, or load existed demo if False ",)
     parser.add_argument("-verb", help="Verbose mode (0: no output, 1: INFO)", default=1, type=int)
     parser.add_argument(
         "-nr", "--norender", action="store_true", default=False,
@@ -102,7 +145,6 @@ if __name__ == "__main__":
         "td3": TD3,
         "ddpg": DDPG,
     }
-
 
     if args.add is not None:
         save_file = args.algo + '_' + args.add + '_' + "FetchReach_v1_env"
@@ -149,14 +191,17 @@ if __name__ == "__main__":
             # env = VecExtractDictObs(env, key_lst=['observation', 'desired_goal'])
             env = gym.make(args.env)
             env.seed(args.seed)
-            env.reward_type = 'dense'  # default sparse
+            env.reward_type = args.rewardType  # default sparse
+            # env.reward_type = 'dense'  # default sparse
+            ic(env.reward_type)
             env = FlattenObservation(FilterObservation(env, ['observation', 'desired_goal']))
+            env = FixGoal(env)
             env = Monitor(env)
-            model= ALGO[args.algo]("MlpPolicy", env, learning_rate=1e-3, verbose=1)
+            model = ALGO[args.algo]("MlpPolicy", env, learning_rate=1e-3, verbose=2)
 
             # Train the model
             start = time.time()
-            model.learn(total_timesteps=800_000)
+            model.learn(total_timesteps=200_000)
             end = time.time() - start
             ic(end)
 
@@ -192,10 +237,15 @@ if __name__ == "__main__":
     ep_len = 0
 
     env = gym.make(args.env)
+    env.seed(args.seed)
+
     if args.algo != 'her':
+        env.reward_type = 'dense'
         env = FilterObservation(env, ['observation', 'desired_goal'])
         env = FlattenObservation(env)
+        env = FixGoal(env)
 
+    ic(env)
     obs = env.reset()
     for t in range(args.n):
 
@@ -212,7 +262,7 @@ if __name__ == "__main__":
         episode_reward += float(reward)
         ep_len += 1
         # TODO: look into how to apply wrappers
-        if done and info["is_success"] == 1:
+        if done: # or info["is_success"] == 1:
             ic(info)
             print(f"Episode Reward: {episode_reward:.2f}")
             print("Episode Length", ep_len)

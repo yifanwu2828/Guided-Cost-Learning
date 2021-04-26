@@ -37,7 +37,8 @@ class MLPPolicy(BasePolicy, nn.Module, metaclass=abc.ABCMeta):
         self.ac_dim = ac_dim
         self.ob_dim = ob_dim
         self.n_layers = n_layers
-        self.size = size
+        # TODO: may need to change size accordingly
+        self.size = 64  # size
         self.discrete = discrete
         self.learning_rate = learning_rate
         self.training = training
@@ -52,6 +53,9 @@ class MLPPolicy(BasePolicy, nn.Module, metaclass=abc.ABCMeta):
                                            output_size=self.ac_dim,
                                            n_layers=self.n_layers,
                                            size=self.size)
+            # init weight
+            self.logits_na = ptu.initialize_weights(self.logits_na)
+
             # To GPU if available
             self.logits_na.to(ptu.device)
 
@@ -68,6 +72,8 @@ class MLPPolicy(BasePolicy, nn.Module, metaclass=abc.ABCMeta):
             self.logstd = nn.Parameter(                 # change no_gpu to train on cpu
                 torch.zeros(self.ac_dim, dtype=torch.float32, device=ptu.device)
             )
+            # init weight
+            self.mean_net = ptu.initialize_weights(self.mean_net)
 
             # To GPU if available
             self.mean_net.to(ptu.device)
@@ -86,6 +92,8 @@ class MLPPolicy(BasePolicy, nn.Module, metaclass=abc.ABCMeta):
                 n_layers=self.n_layers,
                 size=self.size,
             )
+            # init weight
+            self.baseline = ptu.initialize_weights(self.baseline)
 
             # To GPU if available
             self.baseline.to(ptu.device)
@@ -96,6 +104,9 @@ class MLPPolicy(BasePolicy, nn.Module, metaclass=abc.ABCMeta):
             )
         else:
             self.baseline = None
+
+    ##################################
+    ##################################
 
     ##################################
 

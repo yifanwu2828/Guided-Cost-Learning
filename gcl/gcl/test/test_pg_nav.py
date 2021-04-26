@@ -62,8 +62,8 @@ class PG_Trainer(object):
 
 if __name__ == '__main__':
     # set overflow warning to error instead
-    np.seterr(all='raise')
-    torch.autograd.set_detect_anomaly(True)
+    # np.seterr(all='raise')
+    # torch.autograd.set_detect_anomaly(True)
 
     torch.backends.cudnn.benchmark = True
 
