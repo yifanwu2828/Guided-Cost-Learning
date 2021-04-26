@@ -114,6 +114,11 @@ class GCL_Trainer(object):
         discrete: bool = isinstance(self.env.action_space, gym.spaces.Discrete)
         self.params['agent_params']['discrete'] = discrete
 
+        self.params['agent_params']['action_range'] = [
+            float(self.env.action_space.low.min()),
+            float(self.env.action_space.high.max())
+        ]
+
         ac_dim: int = self.env.action_space.n if discrete else self.env.action_space.shape[0]
         self.params['agent_params']['ac_dim'] = ac_dim
         self.params['agent_params']['ob_dim'] = ob_dim

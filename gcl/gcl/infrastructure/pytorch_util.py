@@ -158,20 +158,23 @@ def exp_normalize(x):
     return y / y.sum()
 
 
-def initialize_weights(model: nn.Module):
+@torch.no_grad()
+def initialize_weights(m):
     """weight initialization"""
-    for m in model.modules():
-        if isinstance(m, nn.Conv2d):
-            nn.init.kaiming_uniform_(m.weight)
-            if m.bias is not None:
-                nn.init.constant_(m.bias, 0)
-
-        elif isinstance(m, nn.BatchNorm2d):
-            nn.init.constant_(m.weight, 1)
+    if isinstance(m, nn.Conv2d):
+        nn.init.kaiming_uniform_(m.weight)
+        if m.bias is not None:
             nn.init.constant_(m.bias, 0)
 
-        elif isinstance(m, nn.Linear):
-            nn.init.kaiming_uniform_(m.weight, mode='fan_in', nonlinearity='relu')
-            if m.bias is not None:
-                nn.init.constant_(m.bias, 0)
-    return model
+    elif isinstance(m, nn.BatchNorm2d):
+        nn.init.constant_(m.weight, 1)
+        nn.init.constant_(m.bias, 0)
+
+    elif isinstance(m, nn.Linear):
+        nn.init.kaiming_uniform_(m.weight, mode='fan_in', nonlinearity='relu')
+        if m.bias is not None:
+            nn.init.constant_(m.bias, 0)
+
+
+def count_vars(module):
+    return sum([np.prod(p.shape) for p in module.parameters()])

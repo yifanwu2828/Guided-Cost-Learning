@@ -1,6 +1,6 @@
 import abc
 import itertools
-from typing import Any
+from typing import Tuple
 from torch import nn
 from torch.nn import functional as F
 from torch import optim
@@ -49,6 +49,9 @@ class MLPPolicy(BasePolicy, nn.Module, metaclass=abc.ABCMeta):
             self.mean_net = None
             self.logstd = None
 
+            # init weight
+            self.logits_na.apply(ptu.initialize_weights)
+
             self.logits_na.to(ptu.device)
             self.optimizer = optim.Adam(self.logits_na.parameters(),
                                         self.learning_rate)
@@ -64,6 +67,8 @@ class MLPPolicy(BasePolicy, nn.Module, metaclass=abc.ABCMeta):
             self.logstd = nn.Parameter(
                 torch.zeros(self.ac_dim, dtype=torch.float32, device=ptu.device)
             )
+            # init weight
+            self.mean_net.apply(ptu.initialize_weights)
 
             self.mean_net.to(ptu.device)
             self.logstd.to(ptu.device)
@@ -80,7 +85,7 @@ class MLPPolicy(BasePolicy, nn.Module, metaclass=abc.ABCMeta):
 
     ##################################
 
-    def get_action(self, obs: np.ndarray) -> np.ndarray:
+    def get_action(self, obs: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         if len(obs.shape) > 1:
             observation = obs
         else:
@@ -90,7 +95,7 @@ class MLPPolicy(BasePolicy, nn.Module, metaclass=abc.ABCMeta):
         action_dist = self(observation)
         action = action_dist.sample()
         log_prob = action_dist.log_prob(action)
-        return ptu.to_numpy(action)  # , ptu.to_numpy(log_prob)
+        return ptu.to_numpy(action), ptu.to_numpy(log_prob)
 
     # update/train this policy
     def update(self, observations, actions, **kwargs) -> dict:

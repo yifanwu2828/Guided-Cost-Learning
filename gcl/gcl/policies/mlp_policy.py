@@ -54,7 +54,7 @@ class MLPPolicy(BasePolicy, nn.Module, metaclass=abc.ABCMeta):
                                            n_layers=self.n_layers,
                                            size=self.size)
             # init weight
-            self.logits_na = ptu.initialize_weights(self.logits_na)
+            self.logits_na.apply(ptu.initialize_weights)
 
             # To GPU if available
             self.logits_na.to(ptu.device)
@@ -73,7 +73,7 @@ class MLPPolicy(BasePolicy, nn.Module, metaclass=abc.ABCMeta):
                 torch.zeros(self.ac_dim, dtype=torch.float32, device=ptu.device)
             )
             # init weight
-            self.mean_net = ptu.initialize_weights(self.mean_net)
+            self.mean_net.apply(ptu.initialize_weights)
 
             # To GPU if available
             self.mean_net.to(ptu.device)
@@ -93,7 +93,7 @@ class MLPPolicy(BasePolicy, nn.Module, metaclass=abc.ABCMeta):
                 size=self.size,
             )
             # init weight
-            self.baseline = ptu.initialize_weights(self.baseline)
+            self.baseline.apply(ptu.initialize_weights)
 
             # To GPU if available
             self.baseline.to(ptu.device)
@@ -115,7 +115,6 @@ class MLPPolicy(BasePolicy, nn.Module, metaclass=abc.ABCMeta):
         torch.save(self.state_dict(), filepath)
 
     ##################################
-
     def get_action(self, obs: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """
         Query the policy with observation(s) to get selected action(s)

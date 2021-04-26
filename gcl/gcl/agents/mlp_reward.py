@@ -39,11 +39,9 @@ class MLPReward(nn.Module):
             n_layers=self.n_layers,
             size=self.size,
             activation='relu',
-            output_activation='relu',
-            # activation='relu',
-            # output_activation='identity',
+            output_activation='identity',
         )
-        self.mlp = ptu.initialize_weights(self.mlp)
+        self.mlp.apply(ptu.initialize_weights)
 
         ic("-----MLP REW------")
         ic(self.ac_dim)
