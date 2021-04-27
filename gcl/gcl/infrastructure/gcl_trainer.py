@@ -210,6 +210,7 @@ class GCL_Trainer(object):
         n_iter_loop = tqdm(range(n_iter), desc="Guided Cost Learning", leave=False)
         for itr in n_iter_loop:
             print(f"\n********** Iteration {itr} ************")
+            self.itr = itr
             # set mode to train
             self.agent.actor.train()
             self.agent.reward.train()
@@ -318,7 +319,7 @@ class GCL_Trainer(object):
         return train_log_lst, policy_log_lst
 
     ############################################################################################
-    @lru_cache(maxsize=3)
+    @lru_cache(maxsize=10)
     def collect_demo_trajectories(self,
                                   expert_data: Optional[str] = None, expert_policy: Optional[str] = None,
                                   ntrajs: int = 100, demo_batch_size: int = 1000,

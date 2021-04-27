@@ -163,7 +163,6 @@ def main():
     ###################
     print("##### PARAM ########")
     # path of pretrain model
-    path = os.getcwd()
     params["no_gpu"] = True  # False
     params["expert_policy"] = "../model/sac_nav_env"
     params["ep_len"] = 100
@@ -171,7 +170,7 @@ def main():
 
     '''Outer Training Loop (Algorithm 1: Guided cost learning)'''
     # Number of iteration of outer training loop (Algorithm 1)
-    params['n_iter'] = 150  # sweet spot 77
+    params['n_iter'] = 200  # converge 77
     # Number of expert rollouts to add to demo replay buffer before outer loop
     params['demo_size'] = 200
     # number of current policy rollouts add to sample buffer per itr in outer training loop

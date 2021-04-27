@@ -115,11 +115,12 @@ class MLPPolicy(BasePolicy, nn.Module, metaclass=abc.ABCMeta):
         torch.save(self.state_dict(), filepath)
 
     ##################################
-    def get_action(self, obs: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    def get_action(self, obs: np.ndarray, with_logprob=True) -> Tuple[np.ndarray, Optional[np.ndarray]]:
         """
         Query the policy with observation(s) to get selected action(s)
         and the corresponding log probability
         :param obs: observation
+        :param with_logprob: whether to output log_prob or not
         :return: action, log_prob
         """
         if len(obs.shape) > 1:
@@ -130,8 +131,11 @@ class MLPPolicy(BasePolicy, nn.Module, metaclass=abc.ABCMeta):
         # Return the action that the policy prescribes
         observation = ptu.from_numpy(observation.astype(np.float32))
         action_dist = self(observation)
-        action = action_dist.sample()
-        log_prob = action_dist.log_prob(action)
+        action = action_dist.rsample()
+        if with_logprob:
+            log_prob = action_dist.log_prob(action)
+        else:
+            log_prob = None
         return ptu.to_numpy(action), ptu.to_numpy(log_prob)
 
     # update/train this policy
@@ -142,18 +146,18 @@ class MLPPolicy(BasePolicy, nn.Module, metaclass=abc.ABCMeta):
         """
         Returns the action distribution
         param: observation
-        return: action_dist
+        return: pi_dist
         type: torch.distributions.Distribution
         """
         if self.discrete:
             logits = self.logits_na(observation)
-            action_dist = distributions.Categorical(logits=logits)
+            pi_dist = distributions.Categorical(logits=logits)
         else:
             mean = self.mean_net(observation)
             std = self.logstd.exp()
-            action_dist = distributions.MultivariateNormal(mean, torch.diag(std))
+            pi_dist = distributions.MultivariateNormal(mean, torch.diag(std))
 
-        return action_dist
+        return pi_dist
 
 
 #####################################################
@@ -169,17 +173,17 @@ class MLPPolicyPG(MLPPolicy):
         self.discrete = discrete
         # Init baseline_loss
         self.baseline_loss = nn.MSELoss()
-        print("MLPPolicy", ptu.device)
+
+        self.mean_net.to(ptu.device)
+        self.baseline.to(ptu.device)
+        self.logstd.to(ptu.device)
+
         ic("-----MLP Policy------")
         ic(self.ac_dim)
         ic(self.ob_dim)
         ic(self.n_layers)
         ic(self.size)
         ic(self.nn_baseline)
-
-        self.mean_net.to(ptu.device)
-        self.baseline.to(ptu.device)
-        self.logstd.to(ptu.device)
 
     def __repr__(self):
         return f"{self.__class__.__name__}"

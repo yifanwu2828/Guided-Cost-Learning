@@ -413,3 +413,11 @@ def extract_concat(obsDict: dict):
     assert isinstance(obsDict, dict)
     obs = np.concatenate([v for k, v in obsDict.items() if k != 'achieved_goal'], axis=None, dtype=np.float32)
     return obs
+
+
+# SAC utils
+
+def combined_shape(length, shape=None):
+    if shape is None:
+        return (length, )
+    return (length, shape) if np.isscalar(shape) else (length, *shape)
