@@ -1,4 +1,5 @@
 from typing import List
+import itertools
 import warnings
 
 import numpy as np
@@ -38,8 +39,10 @@ class MLPReward(nn.Module):
             output_size=self.output_size,
             n_layers=self.n_layers,
             size=self.size,
-            activation='relu',
-            output_activation='identity',
+            # activation='relu',
+            # output_activation='identity',
+            activation='identity',
+            output_activation='relu',
         )
         self.mlp.apply(ptu.initialize_weights)
 
@@ -63,12 +66,7 @@ class MLPReward(nn.Module):
         )
 
         self.optimizer = optim.Adam(
-            [
-                {'params': self.A, 'lr': 5e-3},
-                {'params': self.b, 'lr': 5e-3},
-                {'params': self.w, 'lr': 5e-3},
-                {'params': self.mlp.parameters()}
-            ],
+            itertools.chain([self.A, self.b, self.w], self.mlp.parameters()),
             lr=self.learning_rate
         )
         print("MLP REW", ptu.device)
@@ -176,6 +174,7 @@ class MLPReward(nn.Module):
         sample_loss = torch.sum(weights * sample_return)
         loss = -demo_loss + sample_loss
 
+        # self.optimizer.zero_grad(set_to_none=True)
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()

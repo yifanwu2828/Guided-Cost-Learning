@@ -213,6 +213,7 @@ class MLPPolicyPG(MLPPolicy):
 
         # advantage = Q-V should be positive indicate the traj is better than average of traj
         loss = -torch.mean(log_prob * advantages)
+        # self.optimizer.zero_grad(set_to_none=True)
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
@@ -231,6 +232,7 @@ class MLPPolicyPG(MLPPolicy):
             assert baseline_predictions.shape == targets.shape
 
             baseline_loss = F.mse_loss(baseline_predictions, targets)
+            # self.baseline_optimizer.zero_grad(set_to_none=True)
             self.baseline_optimizer.zero_grad()
             baseline_loss.backward()
             self.baseline_optimizer.step()
@@ -250,7 +252,7 @@ class MLPPolicyPG(MLPPolicy):
         predictions = self.baseline(obs)
         return ptu.to_numpy(predictions)[:, 0]
 
-# TODO implement MLPPolicyGPS()
+# TODO: implement MLPPolicyGPS()
 # class MLPPolicyGPS(MLPPolicy):
 #     """
 #     Policy that uses guided policy search to update parameters
