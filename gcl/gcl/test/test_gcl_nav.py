@@ -170,7 +170,7 @@ def main():
 
     '''Outer Training Loop (Algorithm 1: Guided cost learning)'''
     # Number of iteration of outer training loop (Algorithm 1)
-    params['n_iter'] = 200  # converge 77
+    params['n_iter'] = 100  # converge 77
     # Number of expert rollouts to add to demo replay buffer before outer loop
     params['demo_size'] = 200
     # number of current policy rollouts add to sample buffer per itr in outer training loop
@@ -178,7 +178,7 @@ def main():
 
     ''' Train Reward (Algorithm 2) '''
     # Number of reward updates per iteration in Algorithm 2
-    params["num_reward_train_steps_per_iter"] = 10  # 10 K_r
+    params["num_reward_train_steps_per_iter"] = 30  # 10 K_r
     # Number of expert rollouts to sample from replay buffer per reward update
     params["train_demo_batch_size"] = 100
     # Number of policy rollouts to sample from replay buffer per reward update
