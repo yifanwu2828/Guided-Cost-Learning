@@ -7,7 +7,7 @@ import random
 import numpy as np
 import torch
 import gym
-
+from stable_baselines3 import A2C, SAC, PPO, HER
 try:
     import gym_nav
 except ImportError:
@@ -126,7 +126,7 @@ def sample_trajectory(env,
                       max_path_length: int,
                       render: bool = False, render_mode: str = 'rgb_array',
                       expert: bool = False, evaluate: bool = False, device='cpu',
-                      deterministic: bool = True,
+                      deterministic: bool = True, sb3: bool = False,
                       ) -> PathDict:
     """
     Sample a single trajectory and returns infos
@@ -139,7 +139,8 @@ def sample_trajectory(env,
     :param expert: sample from expert policy if True
     :param evaluate:
     :param device: 'cpu' or 'cuda'
-    :param deterministic: Whether or not to return deterministic actions, else stochastic
+    :param deterministic: whether or not to return deterministic actions, else stochastic
+    :param sb3: use sb3 model
     :return: PathDict
     """
     assert isinstance(max_path_length, int)
@@ -148,7 +149,6 @@ def sample_trajectory(env,
     # initialize env for the beginning of a new rollout
     ob: Union[Dict, np.ndarray] = env.reset()
     last_states = None
-    goal: bool = False
 
     # init vars
     obs: List[np.ndarray] = []
@@ -179,32 +179,28 @@ def sample_trajectory(env,
                     time.sleep(0.1)
 
         # use the most recent ob to decide what to do
-        # in goal env
-        if isinstance(ob, dict):
-            obs.append(extract_concat(ob))
-            goal = True
-        # non-goal env
-        else:
-            obs.append(ob)
+        obs.append(ob)
 
         if expert:
             # stable_baselines3 implementation may need to change this
             # --- check this in every env
-            ac, state = policy.predict(ob, state=last_states, deterministic=deterministic)
+            ac, _state = policy.predict(ob, state=last_states, deterministic=deterministic)
 
             # The last states (can be None, used in recurrent policies)
-            last_states = state
+            last_states = _state
 
             # expert demonstrations assume prob = 1 -> log_prob = 0, convert to np array to keep consistency
             log_prob = np.zeros(1, dtype=np.float32)
 
         else:  # collected policy
-            if isinstance(ob, dict):
-                ob = extract_concat(ob)
             # query the policy's get_action function
-            ac, log_prob = policy.get_action(ob)
-            # unpack ac to remove unwanted type and dim --- check this in every env
-            ac = ac[0]
+            if sb3:
+                ac, _state = policy.predict(ob, state=last_states, deterministic=deterministic)
+                log_prob = policy.policy.action_dist.log_prob(torch.from_numpy(ac).float().to(device))
+            else:
+                ac, log_prob = policy.get_action(ob)
+                # unpack ac to remove unwanted type and dim --- check this in every env
+                ac = ac[0]
         acs.append(ac)
         log_probs.append(log_prob)
 
@@ -212,16 +208,11 @@ def sample_trajectory(env,
         ob, rew, done, info = env.step(ac)
         # record result of taking that action
         steps += 1
-        if isinstance(ob, dict):
-            next_obs.append(extract_concat(ob))
-        else:
-            next_obs.append(ob)
+        next_obs.append(ob)
 
         if expert or evaluate:  # should expert using true reward?
             rewards.append(rew)
         else:
-            if isinstance(ob, dict):
-                ob = extract_concat(ob)
             # not running on gpu which is slow
             rewards.append(
 
@@ -234,14 +225,8 @@ def sample_trajectory(env,
 
         # end the rollout if (rollout can end due to done, or due to max_path_length)
         rollout_done = 0
-
-        if goal:
-            if (done and info.get("is_success", 0) == 1) or steps >= max_path_length:
-                rollout_done = 1
-        else:
-            if done or steps >= max_path_length:
-                rollout_done = 1  # HINT: this is either 0 or 1
-
+        if done or steps >= max_path_length:
+            rollout_done = 1  # HINT: this is either 0 or 1
         terminals.append(rollout_done)
 
         if rollout_done:
@@ -256,6 +241,7 @@ def sample_trajectories(env, policy, agent: BaseAgent,
                         min_timesteps_per_batch: int, max_path_length: int,
                         render=False, render_mode: str = 'rgb_array',
                         expert=False, evaluate=False, device='cpu',
+                        deterministic: bool = True, sb3: bool = False,
                         ) -> Tuple[List[PathDict], int]:
     """
     Sample rollouts until we have collected batch_size trajectories
@@ -269,6 +255,8 @@ def sample_trajectories(env, policy, agent: BaseAgent,
     :param expert: sample from expert policy if True
     :param evaluate
     :param device: 'cpu' or 'cuda'
+    :param deterministic: whether or not to return deterministic actions, else stochastic
+    :param sb3: use sb3 model
     :return: List[PathDict], timesteps_this_batch
     """
     assert isinstance(min_timesteps_per_batch, int) and isinstance(max_path_length, int)
@@ -287,6 +275,8 @@ def sample_trajectories(env, policy, agent: BaseAgent,
             expert=expert,
             evaluate=evaluate,
             device=device,
+            deterministic=deterministic,
+            sb3=sb3,
         )
         paths.append(path)
         timesteps_this_batch += get_pathlength(path)
@@ -299,6 +289,7 @@ def sample_n_trajectories(env, policy, agent: BaseAgent,
                           ntrajs: int, max_path_length: int,
                           render=False, render_mode: str = 'rgb_array',
                           expert=False, evaluate=False, device='cpu',
+                          deterministic: bool = True, sb3: bool = False
                           ) -> List[PathDict]:
     """
     :param env: simulation environment
@@ -311,6 +302,8 @@ def sample_n_trajectories(env, policy, agent: BaseAgent,
     :param expert: sample from expert policy if True
     :param evaluate
     :param device: 'cpu' or 'cuda'
+    :param deterministic: whether or not to return deterministic actions, else stochastic
+    :param sb3: use sb3 model
     :return: List[PathDict]
     """
     assert isinstance(ntrajs, int) and isinstance(max_path_length, int)
@@ -322,6 +315,8 @@ def sample_n_trajectories(env, policy, agent: BaseAgent,
                           render=render, render_mode=render_mode,
                           expert=expert, evaluate=evaluate,
                           device=device,
+                          deterministic=deterministic,
+                          sb3=sb3,
                           ) for _ in range(ntrajs)
     ]
     return ntraj_paths
@@ -379,13 +374,6 @@ def convert_listofrollouts(
     terminals = np.concatenate(terminals, dtype=np.float32)
     concatenated_rewards = np.concatenate(unconcatenated_rewards, dtype=np.float32)
 
-    # observations = np.concatenate([path["observation"] for path in paths])
-    # actions = np.concatenate([path["action"] for path in paths])
-    # log_probs = np.concatenate([path["log_prob"] for path in paths])
-    # next_observations = np.concatenate([path["next_observation"] for path in paths])
-    # terminals = np.concatenate([path["terminal"] for path in paths])
-    # concatenated_rewards = np.concatenate([path["reward"] for path in paths])
-    # unconcatenated_rewards: List = [path["reward"] for path in paths]
     return observations, actions, log_probs, next_observations, terminals, concatenated_rewards, unconcatenated_rewards
 
 
@@ -414,8 +402,6 @@ def extract_concat(obsDict: dict):
     obs = np.concatenate([v for k, v in obsDict.items() if k != 'achieved_goal'], axis=None, dtype=np.float32)
     return obs
 
-
-# SAC utils
 
 def combined_shape(length, shape=None):
     if shape is None:
