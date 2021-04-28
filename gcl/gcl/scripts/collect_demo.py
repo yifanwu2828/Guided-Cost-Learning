@@ -3,12 +3,15 @@ import gym
 import gym_nav
 
 import numpy as np
+import torch
 
 from stable_baselines3 import A2C, SAC, PPO
 from stable_baselines3.ppo import MlpPolicy
 # from stable_baselines3.sac import MlpPolicy
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.monitor import Monitor
+
+import gcl.infrastructure.pytorch_util as ptu
 
 
 def evaluate(model, num_episodes=100, env_id='NavEnv-v0', render=False):
