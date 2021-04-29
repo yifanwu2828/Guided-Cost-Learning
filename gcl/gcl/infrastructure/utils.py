@@ -197,6 +197,7 @@ def sample_trajectory(env,
             if sb3:
                 ac, _state = policy.predict(ob, state=last_states, deterministic=deterministic)
                 log_prob = policy.policy.action_dist.log_prob(torch.from_numpy(ac).float().to(device))
+                log_prob = log_prob.to('cpu').detach().numpy()
             else:
                 ac, log_prob = policy.get_action(ob)
                 # unpack ac to remove unwanted type and dim --- check this in every env
