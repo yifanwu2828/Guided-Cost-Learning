@@ -73,7 +73,7 @@ def init_gpu(use_gpu=True, gpu_id=0) -> None:
         if not torch.cuda.is_available():
             print("GPU not detected. Defaulting to CPU.")
         elif not use_gpu:
-            print("Set to use CPU.")
+            print("ptu: Set to use CPU.")
 
 
 def set_device(device: Union[torch.device, int]) -> None:
