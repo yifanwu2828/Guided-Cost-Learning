@@ -2,24 +2,35 @@ import argparse
 import os
 import time
 from pprint import pprint
+from collections import OrderedDict
 
 import numpy as np
 import torch
 import matplotlib.pyplot as plt
 from icecream import ic
+
+from gym.wrappers import FilterObservation, FlattenObservation
 from stable_baselines3 import A2C, SAC, PPO, HER
 
-from gcl.infrastructure.gcl_trainer import GCL_Trainer
-from gcl.agents.gcl_agent import GCL_Agent
+from gcl.infrastructure.sb3_trainer import GCL_Trainer
+from gcl.agents.gcl_agentSB3 import GCL_AgentSB3
 from gcl.infrastructure.utils import tic, toc
+from gcl.infrastructure.wrapper import FixGoal, LearningReward
 
+ALGO = {
+    "ppo": PPO,
+    "a2c": A2C,
+    "sac": SAC,
+    "her": HER,
+}
 
-ALGO={
-        "ppo": PPO,
-        "a2c": A2C,
-        "sac": SAC,
-        "her": HER,
-    }
+WRAPPER = {
+    '': None,
+    'filter_obs': FilterObservation,
+    'flatten_obs': FlattenObservation,
+    'fix_goal': FixGoal,
+    'mlp_rew': LearningReward,
+}
 
 
 class IRL_Trainer(object):
@@ -29,7 +40,7 @@ class IRL_Trainer(object):
         # SET AGENT PARAMS
         #####################
 
-        computation_graph_args = {
+        train_rew_args = {
             'n_layers': params['n_layers'],
             'size': params['size'],
             'output_size': params['output_size'],
@@ -39,20 +50,23 @@ class IRL_Trainer(object):
         estimate_advantage_args = {
             'gamma': params['discount'],
             'standardize_advantages': not (params['dont_standardize_advantages']),
-            'normalize_advantage': not (params['dont_standardize_advantages']),
             'reward_to_go': params['reward_to_go'],
             'nn_baseline': params['nn_baseline'],
         }
 
-        train_args = {
+        train_policy_args = {
             'model_class': params['algo'],
             'additional_algo': params['additional_algo'],
             'num_policy_train_steps_per_iter': params['num_policy_train_steps_per_iter'],
 
+            # A2C
+            'normalize_advantage': False,
+            # 'policy_lr':
+
             # PPO
             # 'batch_size': params[batch_size]
-            # 'n_steps': params['num_steps'] # only in a2c or ppo
-            # A2C
+            # 'n_steps': params['num_steps'] =  # only in a2c or ppo
+
             # SAC
             # 'train_freq': params
             # 'gradient_steps': params
@@ -67,20 +81,22 @@ class IRL_Trainer(object):
             "verbose": params['verbose'],
             "seed": params['seed'],
             "create_eval_env": params.get('create_eval_env', False),
-            'tensorboard_log': params['logdir']
+            'tensorboard_log': params['runs'],
         }
 
-        agent_params = {
-            **computation_graph_args,
-            **estimate_advantage_args,
-            **train_args,
-            **policy_kwargs,
-            **util_args,
-        }
+        agent_params = OrderedDict(
+            {
+                **train_rew_args,
+                **estimate_advantage_args,
+                **train_policy_args,
+                **policy_kwargs,
+                **util_args,
+            }
+        )
         ic(agent_params)
 
         self.params = params
-        self.params['agent_class'] = GCL_Agent
+        self.params['agent_class'] = GCL_AgentSB3
         self.params['agent_params'] = agent_params
 
         ################
@@ -113,7 +129,16 @@ def removeOutliers(x, outlierConstant=1.5) -> list:
 
 
 def main():
+    pass
+
+
+if __name__ == '__main__':
+    print(torch.__version__)
+    # set overflow warning to error instead
+    # np.seterr(all='raise')
+    # main()
     parser = argparse.ArgumentParser()
+    # ENV args
     parser.add_argument('--exp_name', '-exp', type=str, default='nav_env_irl')
     parser.add_argument('--env_name', '-env', type=str, default='NavEnv-v0')
     parser.add_argument(
@@ -125,19 +150,20 @@ def main():
         help="Apply wrapper to env",
     )
 
-    # relative to where you're running this script from
-    parser.add_argument('--expert_policy', '-epf', type=str, default='ppo_nav_env')
+    # Demo args (relative to where you're running this script from)
+    parser.add_argument('--expert_policy', '-epf', type=str, default='sac_nav_env')
     parser.add_argument('--expert_data', '-ed', type=str, default='')
-    parser.add_argument("-algo", help="RL Algorithm", type=str, required=True)
+
+    # Policy args
+    parser.add_argument("-algo", help="RL Algorithm", type=str, default='ppo')
     parser.add_argument("-add", "--additional_algo", help="RL Algorithm with HER", type=str, default=None)
 
-
-
-    # PG setting
+    # if custom PG setting
     parser.add_argument('--reward_to_go', '-rtg', action='store_true', default=True)
     parser.add_argument('--nn_baseline', action='store_true', default=True)
     parser.add_argument('--dont_standardize_advantages', '-dsa', action='store_true', default=False)
 
+    # Train Reward args
     parser.add_argument(
         '--n_iter', '-n', type=int, default=10,
         help='Number of total iterations in outer training loop (Algorithm 1: Guided cost learning)')
@@ -153,9 +179,6 @@ def main():
         '--num_reward_train_steps_per_iter', type=int, default=10,
         help='Number of reward updates per iteration in Algorithm 2: Nonlinear IOC with stochastic gradients'
     )
-    parser.add_argument(
-        '--num_policy_train_steps_per_iter', type=int, default=1,
-        help='Number of policy updates per iteration')
 
     parser.add_argument(
         '--train_reward_demo_batch_size', type=int, default=10,
@@ -173,11 +196,12 @@ def main():
     parser.add_argument(
         '--train_batch_size', type=int, default=1000,
         help='Number of transition steps to sample from replay buffer per policy update'
-    )   # use at least 5000 for 100 policy update itr
-    parser.add_argument(
-        '--eval_batch_size', type=int, default=100,
-        help='Number of transition steps to sample from current policy for evaluation'
     )
+
+    # Policy args
+    parser.add_argument(
+        '--num_policy_train_steps_per_iter', type=int, default=1,
+        help='Number of policy updates per iteration')
 
     parser.add_argument('--discount', type=float, default=1.0)
     parser.add_argument('--n_layers', '-l', type=int, default=2)
@@ -188,11 +212,11 @@ def main():
     parser.add_argument('--ep_len', type=int)
     parser.add_argument('--seed', type=int, default=1)
 
-
     parser.add_argument('--no_gpu', '-ngpu', action='store_true')
     parser.add_argument('--which_gpu', '-gpu_id', default=0)
-    parser.add_argument('--scalar_log_freq', type=int, default=1)
+    parser.add_argument('--scalar_log_freq', type=int, default=-1)
     parser.add_argument('--save_params', action='store_true', default=False)
+    parser.add_argument("-verb", '--verbose', help="Verbose mode (0: no output, 1: INFO)", default=1, type=int)
 
     args = parser.parse_args()
 
@@ -202,17 +226,20 @@ def main():
     ##################################
     # CREATE DIRECTORY FOR LOGGING
     ##################################
+    path_lst = ['../../data', "../../runs"]
+    logdir_lst = []
+    for path in path_lst:
+        data_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), path)
 
-    data_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../data')
+        if not (os.path.exists(data_path)):
+            os.makedirs(data_path)
 
-    if not (os.path.exists(data_path)):
-        os.makedirs(data_path)
+        logdir = args.exp_name + '_' + args.env_name + '_' + time.strftime("%d-%m-%Y_%H-%M-%S")
+        logdir = os.path.join(data_path, logdir)
+        logdir_lst.append(logdir)
 
-    logdir = args.exp_name + '_' + args.env_name + '_' + time.strftime("%d-%m-%Y_%H-%M-%S")
-    logdir = os.path.join(data_path, logdir)
-    params['logdir'] = logdir
-    if not (os.path.exists(logdir)):
-        os.makedirs(logdir)
+    params['logdir'] = logdir_lst[0]
+    params['runs'] = logdir_lst[1]
 
     ###################
     # RUN TRAINING
@@ -221,11 +248,12 @@ def main():
     # path of pretrain model
     params["no_gpu"] = True  # False
     params["expert_policy"] = "../model/sac_nav_env"
+    params['algo'] = 'a2c'
     params["ep_len"] = 100
 
     '''Outer Training Loop (Algorithm 1: Guided cost learning)'''
     # Number of iteration of outer training loop (Algorithm 1)
-    params['n_iter'] = 200  # converge 77
+    params['n_iter'] = 200  # converge PPO:20
     # Number of expert rollouts to add to demo replay buffer before outer loop
     params['demo_size'] = 200
     # number of current policy rollouts add to sample buffer per itr in outer training loop
@@ -238,7 +266,6 @@ def main():
     # Number of policy rollouts to sample from replay buffer per reward update
     params["train_sample_batch_size"] = 100  # 100
 
-
     ''' Train Policy (PPO, A2C, SAC, SAC+HER) '''
     # Number of policy updates per iteration
     params["num_policy_train_steps_per_iter"] = 1  # K_p
@@ -246,15 +273,12 @@ def main():
     # equivalent to number of transition steps collect in outer loop
     params["train_batch_size"] = 10_000  # 10_000
 
-
-
     # size of subset should be less than size of set
-    assert params['demo_size'] >= params["train_demo_batch_size"]
+    assert params['demo_size'] >= params["train_reward_demo_batch_size"]
     assert params["train_batch_size"] >= params["train_sample_batch_size"] * params["ep_len"]
 
     params["learning_rate"] = 1e-3
     ic(params)
-
 
     trainer = IRL_Trainer(params)
     start_train = tic()
@@ -286,19 +310,12 @@ def main():
     # saving mlp Reward and Policy
     SAVE = True
     if SAVE:
-        fname1 = "../model/test_gcl_reward_GPU.pth"
+        fname1 = "../model/test_sb3_reward_GPU.pth"
         reward_model = trainer.gcl_trainer.agent.reward
         torch.save(reward_model, fname1)
 
-        fname2 = "../model/test_gcl_policy_GPU.pth"
+        fname2 = "../model/test_sb3_policy_GPU"
         policy_model = trainer.gcl_trainer.agent.actor
-        torch.save(policy_model, fname2)
-
-
-if __name__ == '__main__':
-    print(torch.__version__)
-    # set overflow warning to error instead
-    # np.seterr(all='raise')
-    main()
+        policy_model.save(fname2)
+        # torch.save(policy_model, fname2)
     print("Done!")
-
