@@ -1,22 +1,20 @@
 from abc import ABCMeta
 from typing import Optional, List, Union
-from functools import reduce
-from itertools import accumulate
 
 import numpy as np
 import torch
-
+from icecream import ic
 from stable_baselines3 import A2C, SAC, PPO, HER
 
-from gcl.policies.mlp_policy import MLPPolicyPG
 from .base_agent import BaseAgent
 from .mlp_reward import MLPReward
 from gcl.infrastructure.replay_buffer import ReplayBuffer
-from gcl.infrastructure.utils import PathDict, normalize
+from gcl.infrastructure.wrapper import LearningReward
+from gcl.infrastructure.utils import PathDict
 import gcl.infrastructure.pytorch_util as ptu
 
 
-ALGO={
+ALGO = {
         "ppo": PPO,
         "a2c": A2C,
         "sac": SAC,
@@ -24,19 +22,31 @@ ALGO={
     }
 
 
-class GCL_Agent(BaseAgent, metaclass=ABCMeta):
-    gamma: float
-    standardize_advantages: bool
-    nn_baseline: bool
-    reward_to_go: bool
-
+class GCL_AgentSB3(BaseAgent, metaclass=ABCMeta):
+    """ GCL Agent migrate with SB3"""
     def __init__(self, env, agent_params: dict):
-        super(GCL_Agent, self).__init__()
+        super(GCL_AgentSB3, self).__init__()
 
-        # init vars
+        # Init vars
         self.env = env
         self.agent_params = agent_params
         self.model_class = ALGO[agent_params["model_class"]]
+
+        # Init reward function
+        self.reward = MLPReward(
+            self.agent_params['ac_dim'],
+            self.agent_params['ob_dim'],
+            self.agent_params['n_layers'],
+            self.agent_params['size'],
+            self.agent_params['output_size'],
+            learning_rate=self.agent_params['learning_rate']
+        )
+        # set mode to train
+        self.reward.train()
+
+        # Apply REW wrapper to env
+        self.env = LearningReward(self.env, self.reward, device=ptu.device)
+        ic(env)
 
         # actor/policy
         if agent_params["model_class"] == 'ppo':
@@ -44,7 +54,7 @@ class GCL_Agent(BaseAgent, metaclass=ABCMeta):
                 # key
                 policy="MlpPolicy",
                 env=self.env,
-                learning_rate=self.agent_params.get('learning_rate', 3e-4),
+                learning_rate=self.agent_params.get('policy_lr', 3e-4),
                 n_steps=self.agent_params.get('n_steps', 2048),
                 batch_size=self.agent_params.get('batch_size', 64),
                 n_epochs=self.agent_params.get('n_epochs', 10),
@@ -59,16 +69,17 @@ class GCL_Agent(BaseAgent, metaclass=ABCMeta):
                 policy_kwargs=self.agent_params.get('policy_kwargs', None),
                 verbose=self.agent_params.get('verbose', 1),
                 seed=self.agent_params.get('seed', 42),
-                device="auto"
+                device=ptu.device  # "auto"
             )
+            self.log_interval = 1
 
         elif agent_params["model_class"] == 'a2c':
             self.actor = self.model_class(
                 # key
                 policy="MlpPolicy",
                 env=self.env,
-                learning_rate=self.agent_params.get('learning_rate', 3e-4),
-                n_steps=self.agent_params.get('n_steps', 5),  # -- diff
+                learning_rate=self.agent_params.get('policy_lr', 3e-4),
+                n_steps=self.agent_params.get('n_steps', 2000),  # -- diff
                 gamma=self.agent_params.get('gae_lambda', 0.99),
                 gae_lambda=self.agent_params.get('n_steps', 1.0),
                 normalize_advantage=self.agent_params.get('normalize_advantage', False),
@@ -79,15 +90,16 @@ class GCL_Agent(BaseAgent, metaclass=ABCMeta):
                 policy_kwargs=self.agent_params.get('policy_kwargs', None),
                 verbose=self.agent_params.get('verbose', 1),
                 seed=self.agent_params.get('seed', 42),
-                device="auto"
+                device=ptu.device  # "auto"
             )
+            self.log_interval = 4
 
         elif agent_params["model_class"] == 'sac':
             self.actor = self.model_class(
                 # key
                 policy="MlpPolicy",
                 env=self.env,
-                learning_rate=self.agent_params.get('learning_rate', 3e-4),
+                learning_rate=self.agent_params.get('policy_lr', 3e-4),
                 buffer_size=self.agent_params.get('buffer_size', 1_000_000),
                 learning_starts=100,
                 batch_size=self.agent_params.get('batch_size', 256),
@@ -107,31 +119,24 @@ class GCL_Agent(BaseAgent, metaclass=ABCMeta):
                 policy_kwargs=self.agent_params.get('policy_kwargs', None),
                 verbose=self.agent_params.get('verbose', 1),  # verbosity level: 0 no output, 1 info, 2 debug
                 seed=self.agent_params.get('seed', 42),
-                device="auto"
+                device=ptu.device  # "auto"
             )
+            self.log_interval = 4
+
+        elif agent_params["model_class"] == 'her':
+            pass
+            self.log_interval = 4
+
         else:
-            raise NotImplementedError("Please Provide Policy")
+            raise NotImplementedError("Please Provide Valid Policy")
 
-
-        # reward function
-        self.reward = MLPReward(
-            self.agent_params['ac_dim'],
-            self.agent_params['ob_dim'],
-            self.agent_params['n_layers'],
-            self.agent_params['size'],
-            self.agent_params['output_size'],
-            learning_rate=self.agent_params['learning_rate']
-        )
-        # set mode to train
-        # self.actor.train()
-        self.reward.train()
-
-        print("Agent", ptu.device)
         # Replay buffers: demo holds expert demonstrations and sample holds policy samples
         self.demo_buffer = ReplayBuffer(1_000_000)
         self.sample_buffer = ReplayBuffer(1_000_000)
         self.background_buffer = ReplayBuffer(1_000_000)
 
+        print(f"Agent\nagent device: {ptu.device}")
+        ic(self.agent_params.get('policy_lr'))
     #####################################################
     #####################################################
 
@@ -161,11 +166,16 @@ class GCL_Agent(BaseAgent, metaclass=ABCMeta):
         :type: dict
         """
         # unpack rollouts into obs, act, log_probs
-        demo_obs = [demo_path['observation'] for demo_path in demo_batch]
-        demo_acs = [demo_path['action'] for demo_path in demo_batch]
-        sample_obs = [sample_path['observation'] for sample_path in sample_batch]
-        sample_acs = [sample_path['action'] for sample_path in sample_batch]
-        sample_log_probs = [sample_path['log_prob'] for sample_path in sample_batch]
+        demo_obs, demo_acs = [], []
+        for demo_path in demo_batch:
+            demo_obs.append(demo_path['observation'])
+            demo_acs.append(demo_path['action'])
+
+        sample_obs, sample_acs, sample_log_probs = [], [], []
+        for sample_path in sample_batch:
+            sample_obs.append(sample_path['observation'])
+            sample_acs.append(sample_path['action'])
+            sample_log_probs.append(sample_path['log_prob'])
 
         # Estimate gradient loss and update parameters
         reward_log = self.reward.update(demo_obs, demo_acs, sample_obs, sample_acs, sample_log_probs)
@@ -173,7 +183,12 @@ class GCL_Agent(BaseAgent, metaclass=ABCMeta):
         return reward_log
 
     ##################################################################################################
-
+    def train_policy(self, total_timesteps):
+        self.actor.learn(
+            total_timesteps=total_timesteps,
+            callback=None,
+            log_interval=self.log_interval,     # deafult: PPO=1, A2C=100, SAC=4, HER=4,
+        )
     #####################################################
     #####################################################
 
