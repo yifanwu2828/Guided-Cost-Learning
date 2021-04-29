@@ -400,19 +400,11 @@ class GCL_Trainer(object):
                 agent=self.agent,
                 min_timesteps_per_batch=batch_size,
                 max_path_length=self.params['ep_len'],
-                device=ptu.device
-            )
-        # print(f"\n--envsteps_this_batch: {envsteps_this_batch}")
+                device=ptu.device,
+                deterministic=False,
+                sb3=False,
 
-        # if self.log_video:
-        #     print('\nCollecting train rollouts to be used for saving videos...')
-        #     # TODO look in utils and
-        #     pass
-        #
-        # # TODO: add logging
-        # if self.log_metrics:
-        #     # TODO:# what should be log in this function
-        #     pass
+            )
 
         return paths, envsteps_this_batch, train_video_paths
 
