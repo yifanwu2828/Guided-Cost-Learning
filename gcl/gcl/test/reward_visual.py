@@ -49,13 +49,14 @@ if __name__ == '__main__':
     # #######################################################################################
     # load model
     start_load = tic("############ Load Model ############")
-    fname1 = "../model/test_gcl_reward_GPU.pth"
+    # fname1 = "../model/test_gcl_reward_GPU.pth"
+    fname1 = "../model/test_sb3_reward_GPU.pth"
     reward_model = torch.load(fname1)
     reward_model.eval()
 
-    fname2 = "../model/test_gcl_policy_GPU.pth"
-    policy_model = torch.load(fname2)
-    policy_model.eval()
+    # fname2 = "../model/test_gcl_policy_GPU.pth"
+    fname2 = "../model/test_sb3_policy_GPU"
+    policy_model = PPO.load(fname2)
 
     demo_model = SAC.load("../model/sac_nav_env")
     toc(start_load, "Loading")
@@ -139,8 +140,10 @@ if __name__ == '__main__':
     n_step = range(1000)
     for t in tqdm(n_step):
         demo_action, _ = demo_model.predict(demo_obs, deterministic=True)
-        agent_action, log_prob = policy_model.get_action(agent_obs)
-        agent_action = agent_action[0]
+        # agent_action, log_prob = policy_model.get_action(agent_obs)
+        # agent_action = agent_action[0]
+        agent_action, log_prob = policy_model.predict(agent_obs)
+
 
         demo_mlp_rew = float(reward_model(torch.from_numpy(demo_obs).float(),
                                           torch.from_numpy(demo_action).float())
