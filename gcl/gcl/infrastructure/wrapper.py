@@ -1,4 +1,5 @@
 import numpy as np
+import torch
 import gym
 
 
@@ -42,3 +43,25 @@ class FixGoal(gym.Wrapper):
         # self.env.goal = self.pos
         obs[0:3] = self.env.goal.copy()
         return obs
+
+
+
+class LearningReward(gym.Wrapper):
+    def __init__(self, env, reward, device):
+        super().__init__(env)
+        self.env = env
+        self.reward = reward
+        self.device = device
+
+    def step(self, action):
+        observation, _, done, info = self.env.step(action)
+        reward=self.reward(
+                    observation=torch.from_numpy(observation).float().to(self.device),
+                    action=torch.from_numpy(action).float().to(self.device),
+                ).to('cpu').detach().numpy()
+        return observation, reward, done, info
+
+
+# if __name__ == '__main__':
+#     env = gym.make("FrozenLake-v0")
+#     env = LearningReward(env)
