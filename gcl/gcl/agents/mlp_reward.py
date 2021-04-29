@@ -16,7 +16,8 @@ except ImportError:  # Graceful fallback if IceCream isn't installed.
 
 from gcl.infrastructure import pytorch_util as ptu
 
-warnings.filterwarnings('always')
+# warnings.filterwarnings('always')
+warnings.filterwarnings('once')
 
 
 class MLPReward(nn.Module):
