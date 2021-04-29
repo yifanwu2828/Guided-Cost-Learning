@@ -70,7 +70,6 @@ class MLPReward(nn.Module):
             itertools.chain([self.A, self.b, self.w], self.mlp.parameters()),
             lr=self.learning_rate
         )
-        print("MLP REW", ptu.device)
         # To GPU if available
         self.mlp.to(ptu.device)
 
