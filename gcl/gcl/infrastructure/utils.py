@@ -7,7 +7,9 @@ import random
 import numpy as np
 import torch
 import gym
+from gym import spaces
 from stable_baselines3 import A2C, SAC, PPO, HER
+
 try:
     import gym_nav
 except ImportError:
@@ -181,9 +183,9 @@ def sample_trajectory(env,
         # use the most recent ob to decide what to do
         obs.append(ob)
 
+        # expert policy
         if expert:
-            # stable_baselines3 implementation may need to change this
-            # --- check this in every env
+            # stable_baselines3 implementation
             ac, _state = policy.predict(ob, state=last_states, deterministic=deterministic)
 
             # The last states (can be None, used in recurrent policies)
@@ -192,29 +194,47 @@ def sample_trajectory(env,
             # expert demonstrations assume prob = 1 -> log_prob = 0, convert to np array to keep consistency
             log_prob = np.zeros(1, dtype=np.float32)
 
-        else:  # collected policy
-            # query the policy's get_action function
+        # collected policy
+        else:
+            # use sb3 implementation to obtain action and log_probs
             if sb3:
+                algo_name = agent.agent_params["model_class"]
+
                 ac, _state = policy.predict(ob, state=last_states, deterministic=deterministic)
-                log_prob = policy.policy.action_dist.log_prob(torch.from_numpy(ac).float().to(device))
+
+                # sb3 take action as tensor and output logprob tensor
+                ac_tensor = torch.from_numpy(ac).float().to(device)
+
+                if algo_name == 'ppo' or algo_name == 'a2c':
+                    log_prob = policy.policy.action_dist.log_prob(ac_tensor)
+
+                elif algo_name == 'sac':
+                    log_prob = policy.actor.action_dist.log_prob(torch.unsqueeze(ac_tensor, -1))
+                    log_prob = log_prob.sum(-1, keepdim=True)
+                else:
+                    raise NotImplementedError("Policy Algo Not Implemented!")
                 log_prob = log_prob.to('cpu').detach().numpy()
+
+            # query the policy's get_action function
             else:
                 ac, log_prob = policy.get_action(ob)
-                # unpack ac to remove unwanted type and dim --- check this in every env
+                # unpack ac to remove unwanted type and dim
                 ac = ac[0]
+        # Record actions and log_prob
         acs.append(ac)
         log_probs.append(log_prob)
 
         # take that action and record results
         ob, rew, done, info = env.step(ac)
-        # record result of taking that action
+        # record result(obs) of taking that action
         steps += 1
         next_obs.append(ob)
 
-        if expert or evaluate:  # should expert using true reward?
+        # Append True Reward(In GCL true rewards will not be used)
+        if expert or evaluate:
             rewards.append(rew)
         else:
-            # not running on gpu which is slow
+            # Append MLP Reward
             rewards.append(
 
                 agent.reward(
@@ -230,20 +250,29 @@ def sample_trajectory(env,
             rollout_done = 1  # HINT: this is either 0 or 1
         terminals.append(rollout_done)
 
+        # End while loop
         if rollout_done:
             break
-    # In GCL true rewards will not be used
+
     return Path(obs, image_obs, acs, log_probs, rewards, next_obs, terminals)
 
 
 ########################################################################################
 
-def sample_trajectories(env, policy, agent: BaseAgent,
-                        min_timesteps_per_batch: int, max_path_length: int,
-                        render=False, render_mode: str = 'rgb_array',
-                        expert=False, evaluate=False, device='cpu',
-                        deterministic: bool = True, sb3: bool = False,
-                        ) -> Tuple[List[PathDict], int]:
+def sample_trajectories(
+        env,
+        policy,
+        agent: BaseAgent,
+        min_timesteps_per_batch: int,
+        max_path_length: int,
+        render=False,
+        render_mode: str = 'rgb_array',
+        expert=False,
+        evaluate=False,
+        device='cpu',
+        deterministic: bool = True,
+        sb3: bool = False,
+) -> Tuple[List[PathDict], int]:
     """
     Sample rollouts until we have collected batch_size trajectories
     :param env: simulation environment
@@ -286,12 +315,20 @@ def sample_trajectories(env, policy, agent: BaseAgent,
 
 ########################################################################################
 
-def sample_n_trajectories(env, policy, agent: BaseAgent,
-                          ntrajs: int, max_path_length: int,
-                          render=False, render_mode: str = 'rgb_array',
-                          expert=False, evaluate=False, device='cpu',
-                          deterministic: bool = True, sb3: bool = False
-                          ) -> List[PathDict]:
+def sample_n_trajectories(
+        env,
+        policy,
+        agent: BaseAgent,
+        ntrajs: int,
+        max_path_length: int,
+        render=False,
+        render_mode: str = 'rgb_array',
+        expert=False,
+        evaluate=False,
+        device='cpu',
+        deterministic: bool = True,
+        sb3: bool = False
+) -> List[PathDict]:
     """
     :param env: simulation environment
     :param policy: current policy or expert policy
@@ -310,15 +347,16 @@ def sample_n_trajectories(env, policy, agent: BaseAgent,
     assert isinstance(ntrajs, int) and isinstance(max_path_length, int)
     assert ntrajs > 0 and max_path_length > 0
     ntraj_paths: List[PathDict] = [
-        sample_trajectory(env,
-                          policy, agent,
-                          max_path_length,
-                          render=render, render_mode=render_mode,
-                          expert=expert, evaluate=evaluate,
-                          device=device,
-                          deterministic=deterministic,
-                          sb3=sb3,
-                          ) for _ in range(ntrajs)
+        sample_trajectory(
+            env,
+            policy, agent,
+            max_path_length,
+            render=render, render_mode=render_mode,
+            expert=expert, evaluate=evaluate,
+            device=device,
+            deterministic=deterministic,
+            sb3=sb3,
+        ) for _ in range(ntrajs)
     ]
     return ntraj_paths
 
@@ -326,11 +364,15 @@ def sample_n_trajectories(env, policy, agent: BaseAgent,
 ############################################
 ############################################
 
-def Path(obs: List[np.ndarray], image_obs: Union[List[np.ndarray], List],
-         acs: List[np.ndarray], log_probs: List[np.ndarray],
-         rewards: List[np.ndarray], next_obs: List[np.ndarray],
-         terminals: List[int]
-         ) -> PathDict:
+def Path(
+        obs: List[np.ndarray],
+        image_obs: Union[List[np.ndarray], List],
+        acs: List[np.ndarray],
+        log_probs: List[np.ndarray],
+        rewards: List[np.ndarray],
+        next_obs: List[np.ndarray],
+        terminals: List[int]
+) -> PathDict:
     """
     Take info (separate arrays) from a single rollout and return it in a single dictionary
     """
@@ -375,7 +417,9 @@ def convert_listofrollouts(
     terminals = np.concatenate(terminals, dtype=np.float32)
     concatenated_rewards = np.concatenate(unconcatenated_rewards, dtype=np.float32)
 
-    return observations, actions, log_probs, next_observations, terminals, concatenated_rewards, unconcatenated_rewards
+    return (observations, actions, log_probs,
+            next_observations, terminals,
+            concatenated_rewards, unconcatenated_rewards)
 
 
 ############################################
@@ -406,5 +450,47 @@ def extract_concat(obsDict: dict):
 
 def combined_shape(length, shape=None):
     if shape is None:
-        return (length, )
+        return (length,)
     return (length, shape) if np.isscalar(shape) else (length, *shape)
+
+
+def get_obs_shape(observation_space: spaces.Space) -> Tuple[int, ...]:
+    """
+    Get the shape of the observation (useful for the buffers).
+    :param observation_space:
+    :return:
+    """
+    if isinstance(observation_space, spaces.Box):
+        return observation_space.shape
+    elif isinstance(observation_space, spaces.Discrete):
+        # Observation is an int
+        return (1,)
+    elif isinstance(observation_space, spaces.MultiDiscrete):
+        # Number of discrete features
+        return (int(len(observation_space.nvec)),)
+    elif isinstance(observation_space, spaces.MultiBinary):
+        # Number of binary features
+        return (int(observation_space.n),)
+    else:
+        raise NotImplementedError(f"{observation_space} observation space is not supported")
+
+
+def get_action_dim(action_space: spaces.Space) -> int:
+    """
+    Get the dimension of the action space.
+    :param action_space:
+    :return:
+    """
+    if isinstance(action_space, spaces.Box):
+        return int(np.prod(action_space.shape))
+    elif isinstance(action_space, spaces.Discrete):
+        # Action is an int
+        return 1
+    elif isinstance(action_space, spaces.MultiDiscrete):
+        # Number of discrete actions
+        return int(len(action_space.nvec))
+    elif isinstance(action_space, spaces.MultiBinary):
+        # Number of binary actions
+        return int(action_space.n)
+    else:
+        raise NotImplementedError(f"{action_space} action space is not supported")
