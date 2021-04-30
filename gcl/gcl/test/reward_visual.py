@@ -7,7 +7,7 @@ import torch
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 import sklearn.preprocessing as preprocessing
 import gym
-from stable_baselines3 import PPO, SAC
+from stable_baselines3 import PPO, SAC, A2C, HER
 from tqdm import tqdm
 import time
 
@@ -23,9 +23,11 @@ def get_metrics(reward):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--render', '-r', action='store_true', default=False)
+    parser.add_argument('--algo', '-algo', type=str, required=True)
     parser.add_argument('--plot', '-plt', action='store_true', default=False)
     parser.add_argument('--video', '-v', action='store_true', default=False)
     parser.add_argument('--videoPath', '-path', type=str, default='test_multimovie.gif')
+    parser.add_argument('-device', type=str, default='cuda')
     args = parser.parse_args()
     params = vars(args)
     #######################################################################################
@@ -50,15 +52,15 @@ if __name__ == '__main__':
     # load model
     start_load = tic("############ Load Model ############")
     # fname1 = "../model/test_gcl_reward_GPU.pth"
-    fname1 = "../model/test_sb3_reward_GPU.pth"
+    fname1 = f"../model/test_sb3_reward_{args.algo}_77.pth"
     reward_model = torch.load(fname1)
     reward_model.eval()
 
     # fname2 = "../model/test_gcl_policy_GPU.pth"
-    fname2 = "../model/test_sb3_policy_GPU"
-    policy_model = PPO.load(fname2)
+    fname2 = f"../model/test_sb3_policy_{args.algo}_77"
+    policy_model = SAC.load(fname2)
 
-    demo_model = SAC.load("../model/sac_nav_env")
+    demo_model = SAC.load("../rl-trained-agents/sac_nav_env")
     toc(start_load, "Loading")
     #######################################################################################
     # Init ENV
@@ -66,6 +68,10 @@ if __name__ == '__main__':
     env.seed(SEED)
 
     #######################################################################################
+    if args.device == "cuda":
+        device = torch.device("cuda:0")
+    else:
+        device = torch.device("cpu")
     #######################################################################################
     # Init Param
     reward_log_dict2 = {"act": [], "obs": [], "mlp_reward": [], "true_reward": []}
@@ -73,15 +79,21 @@ if __name__ == '__main__':
     ''' TEST LEARNING REWARD'''
     if VISUAL:
         obs = env.reset()
-        n_step = range(5000)
+        n_step = range(2000)
         for _ in tqdm(n_step):
             action, _states = demo_model.predict(obs, deterministic=True)
+            # ac_tensor = torch.from_numpy(action).float().to('cuda:0')
+
             obs, reward, done, info = env.step(action)
             reward_log_dict2["act"].append(action)
             reward_log_dict2["obs"].append(obs)
-            reward_log_dict2["mlp_reward"].append(float(reward_model(torch.from_numpy(obs).float(),
-                                                                     torch.from_numpy(action).float())
-                                                        .detach().numpy()))
+            reward_log_dict2["mlp_reward"].append(
+                float(
+                    reward_model(torch.from_numpy(obs).float().to(device),
+                                 torch.from_numpy(action).float().to(device)
+                                 ).to('cpu').detach().numpy()
+                )
+            )
             reward_log_dict2["true_reward"].append(reward)
             # env.render()
             if done:
@@ -142,24 +154,23 @@ if __name__ == '__main__':
         demo_action, _ = demo_model.predict(demo_obs, deterministic=True)
         # agent_action, log_prob = policy_model.get_action(agent_obs)
         # agent_action = agent_action[0]
-        agent_action, log_prob = policy_model.predict(agent_obs)
+        agent_action, log_prob = policy_model.predict(agent_obs, deterministic=True)
 
+        demo_mlp_rew = float(
+            reward_model(torch.from_numpy(demo_obs).float().to(device),
+                         torch.from_numpy(demo_action).float().to(device)
+                         ).to('cpu').detach().numpy()
+        )
 
-        demo_mlp_rew = float(reward_model(torch.from_numpy(demo_obs).float(),
-                                          torch.from_numpy(demo_action).float())
-                             .detach().numpy()
-                             )
-
-        agent_mlp_rew = float(reward_model(torch.from_numpy(agent_obs).float(),
-                                           torch.from_numpy(agent_action).float())
-                              .detach().numpy()
-                              )
+        agent_mlp_rew = float(
+            reward_model(
+                torch.from_numpy(agent_obs).float().to(device),
+                torch.from_numpy(agent_action).float().to(device)
+            ).to('cpu').detach().numpy()
+        )
 
         all_log['demo_mlp_rews'].append(demo_mlp_rew)
         all_log['agent_mlp_rews'].append(agent_mlp_rew)
-
-
-
 
         all_log['demo_ac'].append(np.clip(demo_action, a_min, a_max))
         all_log['agent_ac'].append(np.clip(agent_action, a_min, a_max))
@@ -246,7 +257,6 @@ if __name__ == '__main__':
     axs[0].legend()
     axs[1].legend()
     plt.show(block=True)
-
 
     plt.figure()
     plt.plot(all_log['demo_mlp_rews'], label='demo_mlp_rews')
