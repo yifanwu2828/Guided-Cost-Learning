@@ -57,19 +57,18 @@ class IRL_Trainer(object):
         train_policy_args = {
             'model_class': params['algo'],
             'additional_algo': params['additional_algo'],
-            'num_policy_train_steps_per_iter': params['num_policy_train_steps_per_iter'],
 
             # A2C
             'normalize_advantage': False,
-            # 'policy_lr':
+            # 'policy_lr': params.get("policy_lr", None),
 
             # PPO
             # 'batch_size': params[batch_size]
-            # 'n_steps': params['num_steps'] =  # only in a2c or ppo
+            # 'n_steps': ,  # only in a2c or ppo
 
             # SAC
-            # 'train_freq': params
-            # 'gradient_steps': params
+            # 'train_freq': 10
+            # 'gradient_steps': -1
 
         }
 
@@ -134,13 +133,18 @@ def main():
 
 if __name__ == '__main__':
     print(torch.__version__)
+    torch.backends.cudnn.benchmark = True
+
     # set overflow warning to error instead
     # np.seterr(all='raise')
     # main()
+
     parser = argparse.ArgumentParser()
     # ENV args
     parser.add_argument('--exp_name', '-exp', type=str, default='nav_env_irl')
     parser.add_argument('--env_name', '-env', type=str, default='NavEnv-v0')
+    parser.add_argument('--ep_len', type=int)
+    parser.add_argument('--seed', type=int, default=42)
     parser.add_argument(
         "-rt", "--rewardType", type=str, default='dense',
         help="Reward type 'sparse' or 'dense' used in non-HER training ",
@@ -149,10 +153,11 @@ if __name__ == '__main__':
         "-wrapper", "--EnvWrapper", type=str, default='',
         help="Apply wrapper to env",
     )
-
-    # Demo args (relative to where you're running this script from)
+    ##################################################################################
+    # Expert Demo args (relative to where you're running this script from)
     parser.add_argument('--expert_policy', '-epf', type=str, default='sac_nav_env')
     parser.add_argument('--expert_data', '-ed', type=str, default='')
+
 
     # Policy args
     parser.add_argument("-algo", help="RL Algorithm", type=str, default='ppo')
@@ -163,55 +168,45 @@ if __name__ == '__main__':
     parser.add_argument('--nn_baseline', action='store_true', default=True)
     parser.add_argument('--dont_standardize_advantages', '-dsa', action='store_true', default=False)
 
+    ##################################################################################
     # Train Reward args
     parser.add_argument(
-        '--n_iter', '-n', type=int, default=10,
+        '--n_iter', '-n', type=int, default=100,
         help='Number of total iterations in outer training loop (Algorithm 1: Guided cost learning)')
     parser.add_argument(
-        '--demo_size', type=int, default=50,
-        help='Number of expert rollouts to add to demo replay buffer'
-    )
-    parser.add_argument(
-        '--sample_size', type=int, default=10,
-        help='Number of current policy rollouts to add to replay buffer at each iteration'
+        '--demo_size', type=int, default=200,
+        help='Number of expert rollouts to initially add to demo replay buffer'
     )
     parser.add_argument(
         '--num_reward_train_steps_per_iter', type=int, default=10,
         help='Number of reward updates per iteration in Algorithm 2: Nonlinear IOC with stochastic gradients'
     )
-
+    # subset of D_demo
     parser.add_argument(
-        '--train_reward_demo_batch_size', type=int, default=10,
+        '--train_reward_demo_batch_size', type=int, default=100,
         help='Number of expert rollouts (subset of D_demo) to sample from replay buffer per reward update'
     )
+    # subset of D_samp
     parser.add_argument(
-        '--train_sample_batch_size', type=int, default=10,
+        '--train_reward_sample_batch_size', type=int, default=100,
         help='Number of policy rollouts (subset of D_samp) to sample from replay buffer per reward update'
     )
+    # Sample randomly or only recent data from D_samp
     parser.add_argument(
         '--samp_recent', action='store_true', default=False,
         help='sample random data or recent data from D_samp in train reward'
     )
 
-    parser.add_argument(
-        '--train_batch_size', type=int, default=1000,
-        help='Number of transition steps to sample from replay buffer per policy update'
-    )
-
-    # Policy args
-    parser.add_argument(
-        '--num_policy_train_steps_per_iter', type=int, default=1,
-        help='Number of policy updates per iteration')
-
+    ##################################################################################
+    # Train Reward Arch
     parser.add_argument('--discount', type=float, default=1.0)
     parser.add_argument('--n_layers', '-l', type=int, default=2)
     parser.add_argument('--size', '-s', type=int, default=64)
     parser.add_argument('--output_size', type=int, default=20)
     parser.add_argument('--learning_rate', '-lr', type=float, default=5e-3)
 
-    parser.add_argument('--ep_len', type=int)
-    parser.add_argument('--seed', type=int, default=1)
 
+    # Utils
     parser.add_argument('--no_gpu', '-ngpu', action='store_true')
     parser.add_argument('--which_gpu', '-gpu_id', default=0)
     parser.add_argument('--scalar_log_freq', type=int, default=-1)
@@ -228,65 +223,62 @@ if __name__ == '__main__':
     ##################################
     path_lst = ['../../data', "../../runs"]
     logdir_lst = []
-    for path in path_lst:
-        data_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), path)
-
-        if not (os.path.exists(data_path)):
-            os.makedirs(data_path)
+    for log_path in path_lst:
+        if not (os.path.exists(log_path)):
+            os.makedirs(log_path)
 
         logdir = args.exp_name + '_' + args.env_name + '_' + time.strftime("%d-%m-%Y_%H-%M-%S")
-        logdir = os.path.join(data_path, logdir)
+        logdir = os.path.join(log_path, logdir)
         logdir_lst.append(logdir)
+        if not (os.path.exists(logdir)):
+            os.makedirs(logdir)
+        ic(logdir)
 
     params['logdir'] = logdir_lst[0]
     params['runs'] = logdir_lst[1]
+
 
     ###################
     # RUN TRAINING
     ###################
     print("##### PARAM ########")
     # path of pretrain model
-    params["no_gpu"] = True  # False
-    params["expert_policy"] = "../model/sac_nav_env"
-    params['algo'] = 'a2c'
+    params["no_gpu"] = False  # False
+    params["expert_policy"] = "../rl-trained-agents/sac_nav_env"
+    params['algo'] = 'sac'
     params["ep_len"] = 100
 
     '''Outer Training Loop (Algorithm 1: Guided cost learning)'''
     # Number of iteration of outer training loop (Algorithm 1)
-    params['n_iter'] = 200  # converge PPO:20
+    params['n_iter'] = 101  # converge PPO:20, A2C: 100+
     # Number of expert rollouts to add to demo replay buffer before outer loop
     params['demo_size'] = 200
-    # number of current policy rollouts add to sample buffer per itr in outer training loop
-    # params["sample_size"] = 100
 
     ''' Train Reward (Algorithm 2) '''
-
-    # Number of expert rollouts to sample from replay buffer per reward update
+    # Number of `expert` rollouts to sample from replay buffer per reward update
+    # Number of `policy` rollouts to sample from replay buffer per reward update
     params["train_reward_demo_batch_size"] = 100
-    # Number of policy rollouts to sample from replay buffer per reward update
-    params["train_sample_batch_size"] = 100  # 100
+    params["train_reward_sample_batch_size"] = 100
 
     ''' Train Policy (PPO, A2C, SAC, SAC+HER) '''
-    # Number of policy updates per iteration
-    params["num_policy_train_steps_per_iter"] = 1  # K_p
     # Number of transition steps to sample from sample replay buffer per policy update
-    # equivalent to number of transition steps collect in outer loop
     params["train_batch_size"] = 10_000  # 10_000
 
     # size of subset should be less than size of set
     assert params['demo_size'] >= params["train_reward_demo_batch_size"]
-    assert params["train_batch_size"] >= params["train_sample_batch_size"] * params["ep_len"]
+    assert params["train_batch_size"] >= params["train_reward_sample_batch_size"] * params["ep_len"]
 
     params["learning_rate"] = 1e-3
     ic(params)
 
-    trainer = IRL_Trainer(params)
-    start_train = tic()
-    train_log_lst, policy_log_lst = trainer.run_training_loop()
-    toc(start_train, ftime=True)
-
     ###################
     # Test
+    ###################
+    trainer = IRL_Trainer(params)
+    train_log_lst, policy_log_lst = trainer.run_training_loop()
+
+    ####################
+    # Plot
     ###################
 
     res = removeOutliers(train_log_lst)
@@ -317,5 +309,5 @@ if __name__ == '__main__':
         fname2 = "../model/test_sb3_policy_GPU"
         policy_model = trainer.gcl_trainer.agent.actor
         policy_model.save(fname2)
-        # torch.save(policy_model, fname2)
     print("Done!")
+
