@@ -62,8 +62,6 @@ class GCL_Trainer(object):
             else:
                 self.env = self.wrapper(self.env)
         self.env = Monitor(self.env)
-        ic(self.wrapper)
-        ic(self.env)
 
         # Maximum length for episodes
         self.params['ep_len'] = params.get('ep_len', None)
@@ -73,7 +71,6 @@ class GCL_Trainer(object):
                 self.params['ep_len']: int = self.env.spec.max_episode_steps
             except AttributeError:
                 self.params['ep_len']: int = self.env._max_episode_steps  # Access to a protected member
-        ic(self.params['ep_len'])
 
         ########################################
         ########################################
@@ -111,6 +108,10 @@ class GCL_Trainer(object):
         self.log_video = None
         self.log_metrics = None
 
+        print(f"------ GCL_Trainer ------")
+        ic(self.wrapper)
+        ic(self.env)
+
         #############
         # AGENT
         #############
@@ -118,7 +119,6 @@ class GCL_Trainer(object):
         agent_class = self.params['agent_class']
         self.agent = agent_class(self.env, self.params['agent_params'])
         self.samp_recent = self.params['samp_recent']
-        ic(self.agent)
 
     ##################################
 
@@ -180,9 +180,10 @@ class GCL_Trainer(object):
             with torch.no_grad():
                 training_returns = self.collect_training_trajectories(
                     collect_policy=collect_policy,
-                    batch_size=self.params["train_batch_size"]
+                    # batch_size=self.params["train_batch_size"]
+                    batch_size=self.params["train_reward_sample_batch_size"]
                 )
-            # utils.toc(samp_start_time, "collect training trajs")
+
             samp_paths, envsteps_this_batch, train_video_paths = training_returns
             self.total_envsteps += envsteps_this_batch
 
@@ -217,14 +218,14 @@ class GCL_Trainer(object):
                     policy_loss = float(p["Training_Policy_Loss"])
                     policy_log_lst.append(policy_loss)
 
-            save_itr = [50, 77, 100, 125, 150, 200, 250, 300, 350, 400]
+            save_itr = [50, 77, 99, 125-1, 150-1, 200-1, 250-1, 300, 350, 400]
             if itr in save_itr:
                 # Torch
-                fname1 = f"../model/test_sb3_reward_{itr}.pth"
+                fname1 = f"../model/test_sb3_reward_{self.params['agent_params']['model_class']}_{itr}.pth"
                 reward_model = self.agent.reward
                 torch.save(reward_model, fname1)
                 # SB3
-                fname2 = f"../model/test_sb3_policy_{itr}"
+                fname2 = f"../model/test_sb3_policy_{self.params['agent_params']['model_class']}_{itr}"
                 policy_model = self.agent.actor
                 policy_model.save(fname2)
 
@@ -269,7 +270,7 @@ class GCL_Trainer(object):
             return demo_paths[: ntrajs], 0, None
 
         elif expert_policy:
-            ic(expert_policy)
+
             fname = re.split('/', expert_policy)[-1]
             assert isinstance(expert_policy, str)
             if fname.startswith('ppo'):
@@ -318,21 +319,20 @@ class GCL_Trainer(object):
         """
         # Init var
         paths: List[PathDict]
-        envsteps_this_batch: int
+        envsteps_this_batch: Optional[int] = 0
         train_video_paths: Optional[List[PathDict]] = None
 
-        print("\nCollecting sample trajectories to be used for training...")
-        with torch.no_grad():
-            paths, envsteps_this_batch = utils.sample_trajectories(
-                env=self.env,
-                policy=collect_policy,
-                agent=self.agent,
-                min_timesteps_per_batch=batch_size,
-                max_path_length=self.params['ep_len'],
-                device=ptu.device,
-                deterministic=False,
-                sb3=True,
-            )
+        print(f"\nCollecting {batch_size} sample trajectories to be used for training...")
+        paths = utils.sample_n_trajectories(
+            env=self.env,
+            policy=collect_policy,
+            agent=self.agent,
+            ntrajs=batch_size,
+            max_path_length=self.params['ep_len'],
+            device=ptu.device,
+            deterministic=False,
+            sb3=True,
+        )
 
         return paths, envsteps_this_batch, train_video_paths
 
@@ -355,14 +355,13 @@ class GCL_Trainer(object):
             # 3. Sample background batch D^_{samp} \subset D_{sample}
             if not recent:
                 # random sampling
-                sample_batch = self.agent.sample_rollouts(self.params['train_sample_batch_size'])
+                sample_batch = self.agent.sample_rollouts(self.params['train_reward_sample_batch_size'])
             else:
                 # sample recent data
-                sample_batch = self.agent.sample_recent_rollouts(self.params['train_sample_batch_size'])
+                sample_batch = self.agent.sample_recent_rollouts(self.params['train_reward_sample_batch_size'])
 
             # reshape rollouts' elements to match the dimension in Replay buffer
             for num_rollout, _ in enumerate(demo_batch):
-                demo_batch[num_rollout]["log_prob"] = demo_batch[num_rollout]["log_prob"].reshape(-1, 1)
                 demo_batch[num_rollout]["reward"] = demo_batch[num_rollout]["reward"].reshape(-1, 1)
 
             # 4. Append \hat{D}_demo and \hat{D}_samp to background
@@ -386,15 +385,16 @@ class GCL_Trainer(object):
         """
         Guided policy search or Policy Gradient
         """
+        # Freeze learning reward model
+        self.agent.reward.eval()
+
+        # training policy with specified RL algo
         print('\nTraining agent using sampled data from replay buffer...')
         train_policy_logs = []
+        self.agent.train_policy(total_timesteps=self.params["train_batch_size"])
 
-        K_train_policy_loop = range(self.params['num_policy_train_steps_per_iter'])
-        for _ in K_train_policy_loop:
-            self.agent.train_policy(
-                total_timesteps=self.params["train_batch_size"]
-            )
-
+        # Unfreeze learning reward model
+        self.agent.reward.train()
         return train_policy_logs
 
     ##########################################################################
@@ -429,7 +429,6 @@ class GCL_Trainer(object):
                   reward_logs: list, policy_logs: list,
                   verbose=True, logging=False
                   ) -> None:
-        # last_policy_log = policy_logs[-1]
         last_reward_log = reward_logs[-1]
 
         # episode lengths, for logging
@@ -443,7 +442,6 @@ class GCL_Trainer(object):
         training_logs["Train_MinReturn"] = np.min(train_returns)
         training_logs["Train_AverageEpLen"] = np.mean(train_ep_lens)
         training_logs["Train_EnvstepsSoFar"] = total_envsteps
-        # training_logs.update(last_policy_log)
         training_logs.update(last_reward_log)
         '''training_logs'''
         print("|----------------------------|")
