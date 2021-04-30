@@ -29,7 +29,7 @@ class GCL_AgentSB3(BaseAgent, metaclass=ABCMeta):
 
         # Init vars
         self.env = env
-        self.agent_params = agent_params
+        self.agent_params: dict = agent_params
         self.model_class = ALGO[agent_params["model_class"]]
 
         # Init reward function
@@ -46,7 +46,7 @@ class GCL_AgentSB3(BaseAgent, metaclass=ABCMeta):
 
         # Apply REW wrapper to env
         self.env = LearningReward(self.env, self.reward, device=ptu.device)
-        ic(env)
+
 
         # actor/policy
         if agent_params["model_class"] == 'ppo':
@@ -80,8 +80,8 @@ class GCL_AgentSB3(BaseAgent, metaclass=ABCMeta):
                 env=self.env,
                 learning_rate=self.agent_params.get('policy_lr', 3e-4),
                 n_steps=self.agent_params.get('n_steps', 2000),  # -- diff
-                gamma=self.agent_params.get('gae_lambda', 0.99),
-                gae_lambda=self.agent_params.get('n_steps', 1.0),
+                gamma=self.agent_params.get('gamma', 0.99),
+                gae_lambda=self.agent_params.get('gae_lambda', 1.0),
                 normalize_advantage=self.agent_params.get('normalize_advantage', False),
 
                 # utils
@@ -99,19 +99,23 @@ class GCL_AgentSB3(BaseAgent, metaclass=ABCMeta):
                 # key
                 policy="MlpPolicy",
                 env=self.env,
-                learning_rate=self.agent_params.get('policy_lr', 3e-4),
-                buffer_size=self.agent_params.get('buffer_size', 1_000_000),
-                learning_starts=100,
-                batch_size=self.agent_params.get('batch_size', 256),
+                learning_rate=self.agent_params.get('policy_lr', 1e-3),
+                buffer_size=self.agent_params.get('buffer_size', 300_000),
+                learning_starts=0,
+                batch_size=self.agent_params.get('batch_size', 256),  # default 256, 1000, 2000, 5000
                 tau=self.agent_params.get('tau', 0.005),
                 gamma=self.agent_params.get('gae_lambda', 0.99),
-                train_freq=self.agent_params.get('train_freq', 1),  # SEE DOC
-                gradient_steps=self.agent_params.get('gradient_steps', 1),
+                # train_freq=self.agent_params.get('train_freq', 1),  # SEE DOC
+                # Update the model every ``train_freq`` steps.
+                train_freq=10,
+                # How many gradient steps to do after each rollout
+                gradient_steps=self.agent_params.get('gradient_steps', -1),
                 action_noise=self.agent_params.get('action_noise', None),
                 optimize_memory_usage=self.agent_params.get('optimize_memory_usage', False),
-                # update the target network every ``target_network_update_freq``
-                # gradient steps.
-                target_update_interval=self.agent_params.get('target_update_interval', 1),
+                # update the target network every ``target_network_update_freq``gradient steps.
+                target_update_interval=self.agent_params.get('target_update_interval', 2),
+                use_sde=False,
+                use_sde_at_warmup=False,
 
                 # utils
                 tensorboard_log=self.agent_params.get('tensorboard_log', None),
@@ -121,7 +125,7 @@ class GCL_AgentSB3(BaseAgent, metaclass=ABCMeta):
                 seed=self.agent_params.get('seed', 42),
                 device=ptu.device  # "auto"
             )
-            self.log_interval = 4
+            self.log_interval = 10
 
         elif agent_params["model_class"] == 'her':
             pass
@@ -135,8 +139,11 @@ class GCL_AgentSB3(BaseAgent, metaclass=ABCMeta):
         self.sample_buffer = ReplayBuffer(1_000_000)
         self.background_buffer = ReplayBuffer(1_000_000)
 
-        print(f"Agent\nagent device: {ptu.device}")
+        print(f"------ Agent ------"
+              f"\nagent device: {ptu.device}")
+        ic(self.env)
         ic(self.agent_params.get('policy_lr'))
+        ic(self.agent_params.get('tensorboard_log', None))
     #####################################################
     #####################################################
 
@@ -184,10 +191,15 @@ class GCL_AgentSB3(BaseAgent, metaclass=ABCMeta):
 
     ##################################################################################################
     def train_policy(self, total_timesteps):
+        tb_log_name = self.agent_params["model_class"]
         self.actor.learn(
             total_timesteps=total_timesteps,
             callback=None,
-            log_interval=self.log_interval,     # deafult: PPO=1, A2C=100, SAC=4, HER=4,
+            log_interval=self.log_interval,     # default: PPO=1, A2C=100, SAC=4, HER=4,
+            tb_log_name=tb_log_name,
+            # Pass reset_num_timesteps=False to continue the training curve in tensorboard
+            # By default, it will create a new curve
+            reset_num_timesteps=False
         )
     #####################################################
     #####################################################
