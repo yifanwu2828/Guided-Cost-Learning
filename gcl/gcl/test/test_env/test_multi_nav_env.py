@@ -11,7 +11,7 @@ from stable_baselines3 import PPO, SAC, A2C
 from tqdm import tqdm
 import time
 
-from gcl.infrastructure.utils import tic, toc
+from gcl.gcl.infrastructure.utils import tic, toc
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -31,13 +31,13 @@ if __name__ == '__main__':
     #######################################################################################
     # # load model
     start_load = tic("############ Load Model ############")
-    demo_model = SAC.load("../model/sac_nav_env")
+    demo_model = SAC.load("../../model/sac_nav_env")
 
-    fname1 = "../model/test_gcl_reward_GPU.pth"
+    fname1 = "../../model/test_gcl_reward_GPU.pth"
     reward_model = torch.load(fname1)
     reward_model.eval()
 
-    fname2 = "../model/test_gcl_policy_GPU.pth"
+    fname2 = "../../model/test_gcl_policy_GPU.pth"
     policy_model = torch.load(fname2)
     policy_model.eval()
     #######################################################################################

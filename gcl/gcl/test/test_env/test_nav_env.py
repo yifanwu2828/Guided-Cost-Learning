@@ -10,9 +10,8 @@ import torch
 import gym
 from stable_baselines3 import PPO, SAC
 from tqdm import tqdm
+from gcl.gcl.infrastructure.utils import tic, toc
 
-
-from gcl.infrastructure.utils import tic, toc
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
