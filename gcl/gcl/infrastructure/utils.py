@@ -165,12 +165,12 @@ def sample_trajectory(env,
     while True:
         # render image of the simulated env
         if render:
-            if 'rgb_array' in render_mode:
+            if render_mode == 'rgb_array':
                 if hasattr(env, 'sim'):
                     image_obs.append(env.sim.render(camera_name='track', height=500, width=500)[::-1])
                 else:
                     image_obs.append(env.render(mode=render_mode))
-            if 'human' in render_mode:
+            elif render_mode == 'human':
                 env.render(mode=render_mode)
                 if hasattr(env, 'model'):
                     try:
@@ -244,9 +244,9 @@ def sample_trajectory(env,
 
             )
 
-        # end the rollout if (rollout can end due to done, or due to max_path_length)
+        # end the rollout if (rollout can end due to done, or due to max_path_length, or success in GoalEnv)
         rollout_done = 0
-        if done or steps >= max_path_length:
+        if done or steps >= max_path_length:  # or info.get("is_success", 0.0) == 1:
             rollout_done = 1  # HINT: this is either 0 or 1
         terminals.append(rollout_done)
 
