@@ -41,12 +41,13 @@ class MLPReward(nn.Module):
             n_layers=self.n_layers,
             size=self.size,
             # activation='relu',
-            # output_activation='identity',
+            # output_activation='relu',
             activation='identity',
             output_activation='relu',
         )
         self.mlp.apply(ptu.initialize_weights)
 
+        print()
         ic("-----MLP REW------")
         ic(self.ac_dim)
         ic(self.ob_dim)
@@ -167,7 +168,7 @@ class MLPReward(nn.Module):
         w = weights.sum(-1).item()
         if abs(w - 1) > 1e-2:
             warnings.warn(f'Sum of Weights larger than one:{w}')
-            print(w)
+            ic(w)
             # assert abs(w - 1) > 1e-4
 
         demo_loss = torch.mean(demo_return)
