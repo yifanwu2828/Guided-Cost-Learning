@@ -13,12 +13,24 @@ from tqdm import tqdm
 from icecream import ic
 
 import gym
+from gym.wrappers import FilterObservation, FlattenObservation
+
 from stable_baselines3 import A2C, SAC, PPO, HER
 from stable_baselines3.common.monitor import Monitor
 
 from gcl.infrastructure import pytorch_util as ptu
 from gcl.infrastructure import utils
 from gcl.infrastructure.utils import PathDict
+from gcl.infrastructure.wrapper import FixGoal, LearningReward
+
+
+WRAPPER = {
+    '': None,
+    'filter_obs': FilterObservation,
+    'flatten_obs': FlattenObservation,
+    'fix_goal': ['filter_obs', 'flatten_obs', FixGoal],
+    'mlp_rew': LearningReward,
+}
 
 
 class GCL_Trainer(object):
@@ -52,17 +64,31 @@ class GCL_Trainer(object):
 
         # Make the gym environment
         self.env = gym.make(self.params['env_name'])
+        # self.env.reward_type = 'dense'
+        self.env.reward_type = self.params['rewardType']
+
         self.env.seed(seed)
 
-        self.wrapper = self.params.get('wrapper', None)
-        if self.wrapper is not None:
+        # Get ENV wrapper
+        self.wrapper = self.params.get('EnvWrapper', '')
+        if self.wrapper != '':
+            self.wrapper = WRAPPER[self.wrapper]
             if isinstance(self.wrapper, list):
                 for wrapper in self.wrapper:
-                    self.env = wrapper(self.env)
+                    # apply wrapper wrt WRAPPER Dict
+                    if isinstance(wrapper, str):
+                        if wrapper == 'filter_obs':
+                            self.env = WRAPPER[wrapper](self.env, ['observation', 'desired_goal'])
+                        else:
+                            self.env = WRAPPER[wrapper](self.env)
+                    else:
+                        self.env = wrapper(self.env)
             else:
                 self.env = self.wrapper(self.env)
-        self.env = Monitor(self.env)
-
+        if 'Fetch' in self.params['env_name']:
+            self.env = Monitor(self.env, info_keywords=("is_success",))
+        else:
+            self.env = Monitor(self.env)
         # Maximum length for episodes
         self.params['ep_len'] = params.get('ep_len', None)
         if self.params['ep_len'] is None:
@@ -108,9 +134,12 @@ class GCL_Trainer(object):
         self.log_video = None
         self.log_metrics = None
 
-        print(f"------ GCL_Trainer ------")
+        print()
+        ic("--------- GCL_Trainer ---------")
         ic(self.wrapper)
         ic(self.env)
+        ic(self.env.reward_type)
+        ic(self.params['ep_len'])
 
         #############
         # AGENT
@@ -180,7 +209,6 @@ class GCL_Trainer(object):
             with torch.no_grad():
                 training_returns = self.collect_training_trajectories(
                     collect_policy=collect_policy,
-                    # batch_size=self.params["train_batch_size"]
                     batch_size=self.params["train_reward_sample_batch_size"]
                 )
 
@@ -296,7 +324,8 @@ class GCL_Trainer(object):
                 max_path_length=self.params['ep_len'],
                 render=render,
                 render_mode=render_mode,
-                expert=True
+                expert=True,
+                deterministic=True,
             )
         else:
             raise ValueError('Please provide either expert demonstrations or expert policy')
@@ -391,7 +420,9 @@ class GCL_Trainer(object):
         # training policy with specified RL algo
         print('\nTraining agent using sampled data from replay buffer...')
         train_policy_logs = []
-        self.agent.train_policy(total_timesteps=self.params["train_batch_size"])
+        # total_timesteps=self.params["train_batch_size"]
+        total_timesteps= 10_000
+        self.agent.train_policy(total_timesteps=total_timesteps)
 
         # Unfreeze learning reward model
         self.agent.reward.train()
