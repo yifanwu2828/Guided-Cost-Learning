@@ -133,8 +133,7 @@ if __name__ == "__main__":
         "model_class": SAC,
         "goal_selection_strategy": 'future',
         "online_sampling": True,
-        "learning_rate": 0.001,
-        "max_episode_length": 1200
+        "max_episode_length": 1200,
     }
 
     ALGO={
@@ -169,7 +168,7 @@ if __name__ == "__main__":
             # If True the HER transitions will get sampled online
             online_sampling = params["online_sampling"]
             # Time limit for the episodes
-            max_episode_length = params["max_episode_length"]  # 1200
+            # max_episode_length = params["max_episode_length"]  # 1200
             model = ALGO[args.algo](
                 'MlpPolicy',
                 env,
@@ -179,7 +178,7 @@ if __name__ == "__main__":
                 online_sampling=online_sampling,
                 learning_rate=0.001,
                 verbose=1,
-                max_episode_length=max_episode_length)
+                max_episode_length=None)
             # Train the model
             start = time.time()
             model.learn(total_timesteps=200_000)
@@ -197,11 +196,17 @@ if __name__ == "__main__":
             env = FlattenObservation(FilterObservation(env, ['observation', 'desired_goal']))
             env = FixGoal(env)
             env = Monitor(env)
-            model = ALGO[args.algo]("MlpPolicy", env, learning_rate=1e-3, verbose=2)
-
+            if args.algo == 'sac':
+                total_timesteps = 135_000
+                ic(args.algo)
+            else:
+                total_timesteps = 200_000
+            lr= params.get("learning_rate", 3e-4)
+            model = ALGO[args.algo]("MlpPolicy", env, learning_rate=lr, verbose=2)
+            ic(lr)
             # Train the model
             start = time.time()
-            model.learn(total_timesteps=200_000)
+            model.learn(total_timesteps=total_timesteps, log_interval=10)
             end = time.time() - start
             ic(end)
 
@@ -252,6 +257,8 @@ if __name__ == "__main__":
         action, _ = model.predict(obs, deterministic=True)
         obs, reward, done, info = env.step(action)
 
+        ic(info)
+
         demo_log['obs'].append(obs)
         demo_log['acs'].append(action)
         demo_log['successes'].append(info.get("is_success"))
@@ -262,10 +269,10 @@ if __name__ == "__main__":
         episode_reward += float(reward)
         ep_len += 1
         # TODO: look into how to apply wrappers
-        if done: # or info["is_success"] == 1:
-            ic(info)
-            print(f"Episode Reward: {episode_reward:.2f}")
-            print("Episode Length", ep_len)
+        if done:  # or info["is_success"] == 1:
+
+            # print(f"Episode Reward: {episode_reward:.2f}")
+            # print("Episode Length", ep_len)
             demo_log['episode_rewards'].append(episode_reward)
             demo_log['episode_lengths'].append(ep_len)
             episode_reward = 0.0
@@ -274,7 +281,7 @@ if __name__ == "__main__":
             obs = env.reset()
 
         # Reset also when the goal is achieved when using HER
-        if done and info.get("is_success") == 1:
+        if done:
             print("Success?", info.get("is_success", False))
 
             if info.get("is_success") is not None:

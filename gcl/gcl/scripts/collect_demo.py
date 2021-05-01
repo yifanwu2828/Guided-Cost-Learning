@@ -76,9 +76,9 @@ def PPO_demo():
     print("################# Collecting PPO Demo #################")
     # Parallel environments
     env = make_vec_env('NavEnv-v0', n_envs=6)
-    model = PPO(MlpPolicy, env, verbose=1, learning_rate=3e-3)
+    model = PPO(MlpPolicy, env, verbose=1, learning_rate=3e-3, tensorboard_log="./test_log/")
     start_time = time.time()
-    model.learn(total_timesteps=600_000)
+    model.learn(total_timesteps=100_000)
     print(f"Finish in {(time.time() - start_time)}")
 
     # Save model
@@ -87,7 +87,7 @@ def PPO_demo():
 
     # Load model
     model = PPO.load("../model/ppo_nav_env")
-    evaluate(model, num_episodes=200, env_id='NavEnv-v0')
+    # evaluate(model, num_episodes=200, env_id='NavEnv-v0')
 
     env = gym.make('NavEnv-v0')
     obs = env.reset()
@@ -95,7 +95,7 @@ def PPO_demo():
     for i in range(1000):
         action, _states = model.predict(obs, deterministic=True)
         obs, reward, done, info = env.step(action)
-        env.render()
+        # env.render()
         time.sleep(0.1)
         if done:
             obs = env.reset()
@@ -113,8 +113,8 @@ def SAC_demo():
     # model.learn(total_timesteps=100_000, log_interval=10)
     # model.save("../model/sac_nav_env")
     # del model
-    model = SAC.load("../model/sac_nav_env")
-    evaluate(model, num_episodes=200, env_id='NavEnv-v0')
+    model = SAC.load("../rl-trained-agents/sac_nav_env")
+    # evaluate(model, num_episodes=200, env_id='NavEnv-v0')
 
     env = gym.make('NavEnv-v0')
     obs = env.reset()
@@ -122,16 +122,19 @@ def SAC_demo():
     for i in range(1000):
         action, _states = model.predict(obs, deterministic=True)
         obs, reward, done, info = env.step(action)
-        env.render()
-        time.sleep(0.1)
+        ac_tensor = torch.from_numpy(action).float().to('cuda')
+        log_prob = model.actor.action_dist.log_prob(ac_tensor)
+        print(log_prob)
+        # env.render()
+        # time.sleep(0.1)
         if done:
             obs = env.reset()
             print(f"itr:{i}, step:{int(i - t)} -> done :{done}")
             t = i
-    env.close()
+    # env.close()
 
 
 if __name__ == '__main__':
-    # PPO_demo()
+    PPO_demo()
     # A2C_demo()
-    SAC_demo()
+    # SAC_demo()
