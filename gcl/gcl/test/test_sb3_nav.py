@@ -28,7 +28,7 @@ WRAPPER = {
     '': None,
     'filter_obs': FilterObservation,
     'flatten_obs': FlattenObservation,
-    'fix_goal': FixGoal,
+    'fix_goal': [FixGoal, FlattenObservation, FilterObservation],
     'mlp_rew': LearningReward,
 }
 
@@ -128,17 +128,6 @@ def removeOutliers(x, outlierConstant=1.5) -> list:
 
 
 def main():
-    pass
-
-
-if __name__ == '__main__':
-    print(torch.__version__)
-    torch.backends.cudnn.benchmark = True
-
-    # set overflow warning to error instead
-    # np.seterr(all='raise')
-    # main()
-
     parser = argparse.ArgumentParser()
     # ENV args
     parser.add_argument('--exp_name', '-exp', type=str, default='nav_env_irl')
@@ -157,7 +146,6 @@ if __name__ == '__main__':
     # Expert Demo args (relative to where you're running this script from)
     parser.add_argument('--expert_policy', '-epf', type=str, default='sac_nav_env')
     parser.add_argument('--expert_data', '-ed', type=str, default='')
-
 
     # Policy args
     parser.add_argument("-algo", help="RL Algorithm", type=str, default='ppo')
@@ -199,12 +187,11 @@ if __name__ == '__main__':
 
     ##################################################################################
     # Train Reward Arch
-    parser.add_argument('--discount', type=float, default=1.0)
+    parser.add_argument('--discount', type=float, default=0.99)
     parser.add_argument('--n_layers', '-l', type=int, default=2)
     parser.add_argument('--size', '-s', type=int, default=64)
     parser.add_argument('--output_size', type=int, default=20)
     parser.add_argument('--learning_rate', '-lr', type=float, default=5e-3)
-
 
     # Utils
     parser.add_argument('--no_gpu', '-ngpu', action='store_true')
@@ -234,9 +221,7 @@ if __name__ == '__main__':
             os.makedirs(logdir)
         ic(logdir)
 
-    params['logdir'] = logdir_lst[0]
-    params['runs'] = logdir_lst[1]
-
+    params['logdir'], params['runs'] = logdir_lst
 
     ###################
     # RUN TRAINING
@@ -245,7 +230,7 @@ if __name__ == '__main__':
     # path of pretrain model
     params["no_gpu"] = False  # False
     params["expert_policy"] = "../rl-trained-agents/sac_nav_env"
-    params['algo'] = 'sac'
+    # params['algo'] = 'sac'
     params["ep_len"] = 100
 
     '''Outer Training Loop (Algorithm 1: Guided cost learning)'''
@@ -309,5 +294,11 @@ if __name__ == '__main__':
         fname2 = "../model/test_sb3_policy_GPU"
         policy_model = trainer.gcl_trainer.agent.actor
         policy_model.save(fname2)
+
+
+if __name__ == '__main__':
+    print(torch.__version__)
+    torch.backends.cudnn.benchmark = True
+    main()
     print("Done!")
 
