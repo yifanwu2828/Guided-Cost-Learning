@@ -56,11 +56,14 @@ class GCL_AgentSB3(BaseAgent, metaclass=ABCMeta):
                 env=self.env,
                 learning_rate=self.agent_params.get('policy_lr', 3e-4),
                 n_steps=self.agent_params.get('n_steps', 2048),
-                batch_size=self.agent_params.get('batch_size', 64),
+                batch_size=self.agent_params.get('batch_size', 64),     # 64
                 n_epochs=self.agent_params.get('n_epochs', 10),
-                gamma=self.agent_params.get('gae_lambda', 0.95),
+                gamma=self.agent_params.get('gamma', 0.99),
+                gae_lambda=self.agent_params.get('gae_lambda', 0.95),
                 clip_range=self.agent_params.get('clip_range', 0.2),
                 clip_range_vf=self.agent_params.get('clip_range_vf', None),
+                vf_coef=0.5,
+                max_grad_norm=0.5,
 
                 # utils
                 tensorboard_log=self.agent_params.get('tensorboard_log', None),
@@ -71,14 +74,14 @@ class GCL_AgentSB3(BaseAgent, metaclass=ABCMeta):
                 seed=self.agent_params.get('seed', 42),
                 device=ptu.device  # "auto"
             )
-            self.log_interval = 1
+            self.log_interval = 2
 
         elif agent_params["model_class"] == 'a2c':
             self.actor = self.model_class(
                 # key
                 policy="MlpPolicy",
                 env=self.env,
-                learning_rate=self.agent_params.get('policy_lr', 3e-4),
+                learning_rate=self.agent_params.get('policy_lr', 3e-4),  # Nav: 3e-4, 2000
                 n_steps=self.agent_params.get('n_steps', 2000),  # -- diff
                 gamma=self.agent_params.get('gamma', 0.99),
                 gae_lambda=self.agent_params.get('gae_lambda', 1.0),
@@ -92,17 +95,17 @@ class GCL_AgentSB3(BaseAgent, metaclass=ABCMeta):
                 seed=self.agent_params.get('seed', 42),
                 device=ptu.device  # "auto"
             )
-            self.log_interval = 4
+            self.log_interval = 2
 
         elif agent_params["model_class"] == 'sac':
             self.actor = self.model_class(
                 # key
                 policy="MlpPolicy",
                 env=self.env,
-                learning_rate=self.agent_params.get('policy_lr', 1e-3),
-                buffer_size=self.agent_params.get('buffer_size', 300_000),
+                learning_rate=self.agent_params.get('policy_lr', 1e-3),  # Nav: 1e-3
+                buffer_size=self.agent_params.get('buffer_size', 300_000),  # buff 300_000
                 learning_starts=0,
-                batch_size=self.agent_params.get('batch_size', 256),  # default 256, 1000, 2000, 5000
+                batch_size=self.agent_params.get('batch_size', 256),  # default 256,
                 tau=self.agent_params.get('tau', 0.005),
                 gamma=self.agent_params.get('gae_lambda', 0.99),
                 # train_freq=self.agent_params.get('train_freq', 1),  # SEE DOC
@@ -128,7 +131,7 @@ class GCL_AgentSB3(BaseAgent, metaclass=ABCMeta):
             self.log_interval = 10
 
         elif agent_params["model_class"] == 'her':
-            pass
+            print(f"HER requires the environment to inherits from gym.GoalEnv")
             self.log_interval = 4
 
         else:
@@ -139,11 +142,14 @@ class GCL_AgentSB3(BaseAgent, metaclass=ABCMeta):
         self.sample_buffer = ReplayBuffer(1_000_000)
         self.background_buffer = ReplayBuffer(1_000_000)
 
-        print(f"------ Agent ------"
-              f"\nagent device: {ptu.device}")
+        print()
+        ic("--------- Agent ---------")
+        ic(f"agent device: {ptu.device}")
         ic(self.env)
+        ic(self.env.reward_type, )
         ic(self.agent_params.get('policy_lr'))
         ic(self.agent_params.get('tensorboard_log', None))
+        ic(self.log_interval)
     #####################################################
     #####################################################
 
@@ -191,15 +197,14 @@ class GCL_AgentSB3(BaseAgent, metaclass=ABCMeta):
 
     ##################################################################################################
     def train_policy(self, total_timesteps):
-        tb_log_name = self.agent_params["model_class"]
         self.actor.learn(
             total_timesteps=total_timesteps,
             callback=None,
             log_interval=self.log_interval,     # default: PPO=1, A2C=100, SAC=4, HER=4,
-            tb_log_name=tb_log_name,
+            # tb_log_name=tb_log_name,
             # Pass reset_num_timesteps=False to continue the training curve in tensorboard
             # By default, it will create a new curve
-            reset_num_timesteps=False
+            # reset_num_timesteps=False
         )
     #####################################################
     #####################################################
