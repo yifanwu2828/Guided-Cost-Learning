@@ -54,6 +54,7 @@ class MLPReward(nn.Module):
         ic(self.n_layers)
         ic(self.size)
         ic(self.output_size)
+        ic(self.learning_rate)
         ic(self.mlp)
 
         self.A = nn.Parameter(

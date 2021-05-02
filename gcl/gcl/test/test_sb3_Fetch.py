@@ -133,16 +133,15 @@ def main():
 
 if __name__ == '__main__':
     print(torch.__version__)
-    torch.backends.cudnn.benchmark = True
 
     # set overflow warning to error instead
-    np.seterr(all='raise')
-    torch.autograd.set_detect_anomaly(True)
+    # np.seterr(all='raise')
+    # torch.autograd.set_detect_anomaly(True)
     # main()
 
     parser = argparse.ArgumentParser()
     # ENV args
-    parser.add_argument('--exp_name', '-exp', type=str, default='Fetch_Fix_env_irl')
+    parser.add_argument('--exp_name', '-exp', type=str, default='FetchReach_env_irl')
     parser.add_argument('--env_name', '-env', type=str, default='FetchReach-v1')
     parser.add_argument('--ep_len', type=int, required=False)
     parser.add_argument('--seed', type=int, default=42)
@@ -151,7 +150,7 @@ if __name__ == '__main__':
         help="Reward type 'sparse' or 'dense' used in non-HER training ",
     )
     parser.add_argument(
-        "-wrapper", "--EnvWrapper", type=str, default='fix_goal',
+        "-wrapper", "--EnvWrapper", type=str, default='',
         help="Apply wrapper to env",
     )
     ##################################################################################
@@ -175,7 +174,7 @@ if __name__ == '__main__':
         '--n_iter', '-n', type=int, default=100,
         help='Number of total iterations in outer training loop (Algorithm 1: Guided cost learning)')
     parser.add_argument(
-        '--demo_size', type=int, default=200,
+        '--demo_size', type=int, default=500,
         help='Number of expert rollouts to initially add to demo replay buffer'
     )
     parser.add_argument(
@@ -242,22 +241,26 @@ if __name__ == '__main__':
     ###################
     print("##### PARAM ########")
     # path of pretrain model
-    params["no_gpu"] = True  # False
-    params["expert_policy"] = "../rl-trained-agents/sac_FetchReach_v1_Fix_env"
-    params['algo'] = 'sac'
+    # params["no_gpu"] = True
+    params["no_gpu"] = False
+    params["expert_policy"] = "../rl-trained-agents/her_FetchReach_v1_env"
+    params['algo'] = 'her'
+    params["EnvWrapper"] = ''
     # params["ep_len"] = 50
+    params["learning_rate"] = 5e-4
 
     '''Outer Training Loop (Algorithm 1: Guided cost learning)'''
     # Number of iteration of outer training loop (Algorithm 1)
-    params['n_iter'] = 80  # converge PPO:20, A2C: 100+
+    params['n_iter'] = 51  # converge PPO:20, A2C: 100+ ,Her
     # Number of expert rollouts to add to demo replay buffer before outer loop
-    params['demo_size'] = 400
+    params['demo_size'] = 2000
 
     ''' Train Reward (Algorithm 2) '''
     # Number of `expert` rollouts to sample from replay buffer per reward update
     # Number of `policy` rollouts to sample from replay buffer per reward update
-    params["train_reward_demo_batch_size"] = 100
+    params["train_reward_demo_batch_size"] = 500
     params["train_reward_sample_batch_size"] = 100
+    params["samp_recent"] = True
 
     ''' Train Policy (PPO, A2C, SAC, SAC+HER) '''
     # Number of transition steps to sample from sample replay buffer per policy update

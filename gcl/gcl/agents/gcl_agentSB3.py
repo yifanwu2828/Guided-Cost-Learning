@@ -104,7 +104,7 @@ class GCL_AgentSB3(BaseAgent, metaclass=ABCMeta):
                 env=self.env,
                 learning_rate=self.agent_params.get('policy_lr', 1e-3),  # Nav: 1e-3
                 buffer_size=self.agent_params.get('buffer_size', 300_000),  # buff 300_000
-                learning_starts=0,
+                learning_starts=500,
                 batch_size=self.agent_params.get('batch_size', 256),  # default 256,
                 tau=self.agent_params.get('tau', 0.005),
                 gamma=self.agent_params.get('gae_lambda', 0.99),
@@ -118,7 +118,7 @@ class GCL_AgentSB3(BaseAgent, metaclass=ABCMeta):
                 # update the target network every ``target_network_update_freq``gradient steps.
                 target_update_interval=self.agent_params.get('target_update_interval', 2),
                 use_sde=False,
-                use_sde_at_warmup=False,
+                use_sde_at_warmup=True,
 
                 # utils
                 tensorboard_log=self.agent_params.get('tensorboard_log', None),
@@ -132,7 +132,32 @@ class GCL_AgentSB3(BaseAgent, metaclass=ABCMeta):
 
         elif agent_params["model_class"] == 'her':
             print(f"HER requires the environment to inherits from gym.GoalEnv")
-            self.log_interval = 4
+            self.actor = self.model_class(
+                policy='MlpPolicy',
+                env=self.env,
+                model_class=SAC,
+                # HER
+                n_sampled_goal=4,
+                goal_selection_strategy='future',  # One of [‘episode’, ‘final’, ‘future’, ‘random’]
+                buffer_size=1_000_000,
+                # online_sampling=True,  # Sample HER transitions online
+                online_sampling=True,  # Sample HER transitions online
+                max_episode_length=None,
+                # SAC
+                ent_coef='auto',
+                batch_size=2000,
+                gamma=0.95,
+                learning_rate=self.agent_params.get('policy_lr', 1e-3),
+                learning_starts=0,
+
+                # utils
+                # tensorboard_log=self.agent_params.get('tensorboard_log', None),
+                verbose=self.agent_params.get('verbose', 1),
+                seed=self.agent_params.get('seed', 42),
+                device=ptu.device
+
+            )
+            self.log_interval = 20
 
         else:
             raise NotImplementedError("Please Provide Valid Policy")
@@ -146,7 +171,8 @@ class GCL_AgentSB3(BaseAgent, metaclass=ABCMeta):
         ic("--------- Agent ---------")
         ic(f"agent device: {ptu.device}")
         ic(self.env)
-        ic(self.env.reward_type, )
+        ic(self.env.reward_type)
+        ic(self.actor)
         ic(self.agent_params.get('policy_lr'))
         ic(self.agent_params.get('tensorboard_log', None))
         ic(self.log_interval)
@@ -196,15 +222,15 @@ class GCL_AgentSB3(BaseAgent, metaclass=ABCMeta):
         return reward_log
 
     ##################################################################################################
-    def train_policy(self, total_timesteps):
+    def train_policy(self, total_timesteps, log_name=None):
         self.actor.learn(
             total_timesteps=total_timesteps,
             callback=None,
             log_interval=self.log_interval,     # default: PPO=1, A2C=100, SAC=4, HER=4,
-            # tb_log_name=tb_log_name,
+            tb_log_name=log_name,
             # Pass reset_num_timesteps=False to continue the training curve in tensorboard
             # By default, it will create a new curve
-            # reset_num_timesteps=False
+            reset_num_timesteps=True
         )
     #####################################################
     #####################################################

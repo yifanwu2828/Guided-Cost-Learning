@@ -23,7 +23,6 @@ from gcl.infrastructure import utils
 from gcl.infrastructure.utils import PathDict
 from gcl.infrastructure.wrapper import FixGoal, LearningReward
 
-
 WRAPPER = {
     '': None,
     'filter_obs': FilterObservation,
@@ -85,10 +84,13 @@ class GCL_Trainer(object):
                         self.env = wrapper(self.env)
             else:
                 self.env = self.wrapper(self.env)
-        if 'Fetch' in self.params['env_name']:
-            self.env = Monitor(self.env, info_keywords=("is_success",))
-        else:
-            self.env = Monitor(self.env)
+
+        # # Monitor Wrapper
+        # if 'Fetch' in self.params['env_name']:
+        #     self.env = Monitor(self.env, info_keywords=("is_success",))
+        # else:
+        self.env = Monitor(self.env)
+
         # Maximum length for episodes
         self.params['ep_len'] = params.get('ep_len', None)
         if self.params['ep_len'] is None:
@@ -101,9 +103,15 @@ class GCL_Trainer(object):
         ########################################
         ########################################
         # Observation Dimension
-        # Are the observations images?
-        is_img: bool = len(self.env.observation_space.shape) > 2
-        ob_dim: int = self.env.observation_space.shape if is_img else self.env.observation_space.shape[0]
+        if isinstance(self.env.observation_space, gym.spaces.Dict):
+            ob_dim = 0
+            for k in self.env.observation_space:
+                if k != 'achieved_goal':
+                    ob_dim += self.env.observation_space[k].shape[0]
+        else:
+            # Are the observations images?
+            is_img: bool = len(self.env.observation_space.shape) > 2
+            ob_dim: int = self.env.observation_space.shape if is_img else self.env.observation_space.shape[0]
         self.params['agent_params']['ob_dim'] = ob_dim
         ########################################
         # Action Dimension
@@ -134,13 +142,6 @@ class GCL_Trainer(object):
         self.log_video = None
         self.log_metrics = None
 
-        print()
-        ic("--------- GCL_Trainer ---------")
-        ic(self.wrapper)
-        ic(self.env)
-        ic(self.env.reward_type)
-        ic(self.params['ep_len'])
-
         #############
         # AGENT
         #############
@@ -148,6 +149,13 @@ class GCL_Trainer(object):
         agent_class = self.params['agent_class']
         self.agent = agent_class(self.env, self.params['agent_params'])
         self.samp_recent = self.params['samp_recent']
+
+        print()
+        ic("--------- GCL_Trainer ---------")
+        ic(self.wrapper)
+        ic(self.env)
+        ic(self.env.reward_type)
+        ic(self.params['ep_len'])
 
     ##################################
 
@@ -178,10 +186,12 @@ class GCL_Trainer(object):
         #####################################################################
         # 1. Add demonstrations to replay buffer
         with torch.no_grad():
-            demo_paths, _, _ = self.collect_demo_trajectories(expert_data, expert_policy,
-                                                              ntrajs=self.params['demo_size'],
-                                                              render=False,
-                                                              verbose=True)
+            demo_paths, _, _ = self.collect_demo_trajectories(
+                expert_data, expert_policy,
+                ntrajs=self.params['demo_size'],
+                render=False,
+                verbose=True
+            )
         self.agent.add_to_buffer(demo_paths, demo=True)
         print(f'\nNum of Demo rollouts collected: {self.agent.demo_buffer.num_paths}')
         print(f'Num of Demo transition steps collected: {self.agent.demo_buffer.num_data}')
@@ -192,6 +202,7 @@ class GCL_Trainer(object):
         n_iter_loop = tqdm(range(n_iter), desc="Guided Cost Learning", leave=False)
         for itr in n_iter_loop:
             print(f"\n********** Iteration {itr} ************")
+            self.itr = itr
             # set reward mode to train
             self.agent.reward.train()
 
@@ -246,7 +257,7 @@ class GCL_Trainer(object):
                     policy_loss = float(p["Training_Policy_Loss"])
                     policy_log_lst.append(policy_loss)
 
-            save_itr = [50, 77, 99, 125-1, 150-1, 200-1, 250-1, 300, 350, 400]
+            save_itr = [15, 20, 25, 30, 35, 40, 50, 77, 99, 125 - 1, 150 - 1, 200 - 1, 250 - 1, 300, 350, 400]
             if itr in save_itr:
                 # Torch
                 fname1 = f"../model/test_sb3_reward_{self.params['agent_params']['model_class']}_{itr}.pth"
@@ -302,13 +313,13 @@ class GCL_Trainer(object):
             fname = re.split('/', expert_policy)[-1]
             assert isinstance(expert_policy, str)
             if fname.startswith('ppo'):
-                demo_model = PPO.load(path=expert_policy, env=None)
+                demo_model = PPO.load(path=expert_policy, env=None, device=ptu.device)
             elif fname.startswith('a2c'):
-                demo_model = A2C.load(path=expert_policy, env=None)
+                demo_model = A2C.load(path=expert_policy, env=None, device=ptu.device)
             elif fname.startswith('sac'):
-                demo_model = SAC.load(path=expert_policy, env=None)
+                demo_model = SAC.load(path=expert_policy, env=None, device=ptu.device)
             elif fname.startswith('her'):
-                demo_model = HER.load(path=expert_policy, env=self.env)
+                demo_model = HER.load(path=expert_policy, env=self.env, device=ptu.device)
             else:
                 raise ValueError('Please provide valid expert policy')
 
@@ -359,7 +370,7 @@ class GCL_Trainer(object):
             ntrajs=batch_size,
             max_path_length=self.params['ep_len'],
             device=ptu.device,
-            deterministic=False,
+            deterministic=True,
             sb3=True,
         )
 
@@ -414,18 +425,14 @@ class GCL_Trainer(object):
         """
         Guided policy search or Policy Gradient
         """
-        # Freeze learning reward model
-        self.agent.reward.eval()
 
         # training policy with specified RL algo
         print('\nTraining agent using sampled data from replay buffer...')
         train_policy_logs = []
-        # total_timesteps=self.params["train_batch_size"]
-        total_timesteps= 10_000
-        self.agent.train_policy(total_timesteps=total_timesteps)
+        total_timesteps = self.params["train_batch_size"]
+        log_name = f"{self.params['agent_params']['model_class']}_{self.itr}"
+        self.agent.train_policy(total_timesteps=total_timesteps, log_name=log_name)
 
-        # Unfreeze learning reward model
-        self.agent.reward.train()
         return train_policy_logs
 
     ##########################################################################

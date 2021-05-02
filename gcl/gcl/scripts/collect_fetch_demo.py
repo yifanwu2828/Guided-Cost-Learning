@@ -2,6 +2,7 @@ import argparse
 from typing import List
 import sys
 import os
+import argparse
 import time
 from icecream import ic
 
@@ -156,10 +157,13 @@ if __name__ == "__main__":
         if args.algo == 'her':
             env = gym.make(args.env)
             env.seed(args.seed)
-            # env.reward_type = 'dense' # default sparse
-            env = Monitor(env)
+            env.reward_type = 'dense'  # default sparse
+            ic(env.reward_type)
+
+            # env = Monitor(env)
             if args.add is not None:
-                model_class = ALGO[args.add]  # works also with SAC,DQN, DDPG and TD3
+                # model_class = ALGO[args.add]  # works also with SAC,DQN, DDPG and TD3
+                model_class = SAC("MlpPolicy", env, verbose=1, device='cpu')
                 ic(model_class)
             else:
                 model_class = ALGO["sac"]  # works also with SAC,DQN, DDPG and TD3
@@ -175,13 +179,17 @@ if __name__ == "__main__":
                 model_class,
                 n_sampled_goal=4,
                 goal_selection_strategy=goal_selection_strategy,
-                online_sampling=online_sampling,
+                online_sampling=True,
                 learning_rate=0.001,
                 verbose=1,
-                max_episode_length=None)
+                max_episode_length=None,
+                device='cpu',
+            )
             # Train the model
             start = time.time()
-            model.learn(total_timesteps=200_000)
+            total_timesteps = 29600
+            ic(total_timesteps)
+            model.learn(total_timesteps=total_timesteps)
             end = time.time() - start
             ic(end)
 
