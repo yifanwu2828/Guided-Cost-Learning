@@ -63,9 +63,7 @@ class GCL_Trainer(object):
 
         # Make the gym environment
         self.env = gym.make(self.params['env_name'])
-        # self.env.reward_type = 'dense'
-        self.env.reward_type = self.params['rewardType']
-
+        self.env.reward_type = self.params['rewardType']  # 'sparse' or 'dense'
         self.env.seed(seed)
 
         # Get ENV wrapper
@@ -257,14 +255,16 @@ class GCL_Trainer(object):
                     policy_loss = float(p["Training_Policy_Loss"])
                     policy_log_lst.append(policy_loss)
 
-            save_itr = [15, 20, 25, 30, 35, 40, 50, 77, 99, 125 - 1, 150 - 1, 200 - 1, 250 - 1, 300, 350, 400]
+            save_itr = [25, 30, 35, 40, 50, 60, 65, 70, 77, 85, 99, 125 - 1, 150 - 1]
             if itr in save_itr:
+                rew_type = self.env.reward_type
+                algo_name = self.params['agent_params']['model_class']
                 # Torch
-                fname1 = f"../model/test_sb3_reward_{self.params['agent_params']['model_class']}_{itr}.pth"
+                fname1 = f"../model/test_sb3_{rew_type}_reward_{algo_name}_{itr}.pth"
                 reward_model = self.agent.reward
                 torch.save(reward_model, fname1)
                 # SB3
-                fname2 = f"../model/test_sb3_policy_{self.params['agent_params']['model_class']}_{itr}"
+                fname2 = f"../model/test_sb3_{rew_type}_policy_{algo_name}_{itr}"
                 policy_model = self.agent.actor
                 policy_model.save(fname2)
 

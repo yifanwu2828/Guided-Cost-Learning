@@ -29,48 +29,46 @@ def extract_concat(obsDict: dict) -> np.ndarray:
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--render', '-r', action='store_true', default=False)
+    parser.add_argument("-env", help="environment ID", type=str, default="FetchReach-v1")
+    parser.add_argument(
+        "-nr", "--norender", action="store_true", default=False,
+        help="Do not render the environment (useful for tests)"
+    )
     parser.add_argument('--plot', '-plt', action='store_true', default=False)
     parser.add_argument('--video', '-v', action='store_true', default=False)
     parser.add_argument('--videoPath', '-path', type=str, default='test_multimovie.gif')
+    parser.add_argument("-seed", help="number of timesteps", default=42, type=int)
     parser.add_argument('-device', type=str, default='cuda')
     args = parser.parse_args()
     params = vars(args)
     #######################################################################################
-    # Set overflow from warning to raise
-    np.seterr(all='raise')
-    torch.autograd.set_detect_anomaly(True)
     #######################################################################################
     # Set seed
-    SEED = 0
-    np.random.seed(SEED)
-    torch.random.manual_seed(SEED)
+    np.random.seed(args.seed)
+    torch.random.manual_seed(args.seed)
     #######################################################################################
     # Set global Var
-    # VERBOSE = False
-    # VISUAL = False
-    # POLICY = True
-
     VERBOSE = True
     VISUAL = True
     POLICY = True
 
-    # #######################################################################################
+    #######################################################################################
     # Init ENV
-    env = gym.make('FetchReach-v1')
-    env.seed(SEED)
-    env.reward_type = 'dense'
-    ic()
-     #######################################################################################
+    env = gym.make(args.env)
+    env.seed(args.seed)
+    # env.reward_type = 'dense'
+    ic(env.reward_type)
+    ###################################################################################
     # load model
     start_load = tic("############ Load Model ############")
-    # fname1 = "../model/test_gcl_reward_GPU.pth"
-    fname1 = f"../model/test_sb3_reward_her_50.pth"
+    # fname1 = f"../model/test_sb3_reward_her_40.pth"
+    fname1 = f"../model/test_sb3_sparse_reward_her_30.pth"
     reward_model = torch.load(fname1)
     reward_model.eval()
 
-    # fname2 = "../model/test_gcl_policy_GPU.pth"
-    fname2 = f"../model/test_sb3_policy_her_50"
+    # fname2 = f"../model/test_sb3_policy_her_40"
+    fname2 = f"../model/test_sb3_sparse_policy_her_30"
+    # fname2 = f"../model/test_sb3_dense_policy_her_30"
     policy_model = HER.load(fname2, env)
 
     demo_model = HER.load("../rl-trained-agents/her_FetchReach_v1_env", env)
@@ -93,8 +91,6 @@ if __name__ == '__main__':
         n_step = range(2000)
         for _ in tqdm(n_step):
             action, _states = demo_model.predict(obs, deterministic=True)
-            # ac_tensor = torch.from_numpy(action).float().to('cuda:0')
-
             obs, reward, done, info = env.step(action)
             obs = extract_concat(obs)
 
@@ -109,9 +105,8 @@ if __name__ == '__main__':
             )
             reward_log_dict2["true_reward"].append(reward)
             # env.render()
-            if done or info["is_success"] == 1:
+            if done: # or info["is_success"] == 1:
                 obs = env.reset()
-        env.close()
 
         mlp_reward = np.array(reward_log_dict2["mlp_reward"])
         true_reward = np.array(reward_log_dict2["true_reward"])
@@ -142,44 +137,16 @@ if __name__ == '__main__':
         plt.show(block=True)
 
     #######################################################################################
-    all_log = {'agent_rews': [], 'agent_done': [], 'agent_eps_return': [], 'agent_total_return': [], 'agent_ac': [],
-               'demo_rews': [], 'demo_done': [], 'demo_eps_return': [], 'demo_total_return': [], 'demo_ac': [],
-               'agent_mlp_rews': [], 'demo_mlp_rews': [],
-               "winner": []
-               }
-    images = []
+    obs = env.reset()
+    n_step = range(2000)
+    for _ in tqdm(n_step):
+        action, _states = policy_model.predict(obs, deterministic=False)
+        env.render(mode='human')
+        obs, reward, done, info = env.step(action)
 
-    RENDER = params['render']
-    PLOT = params['plot']
-    VIDEO = params['video']
-    PATH = params['videoPath']
 
-    RENDER_RGB = False
-    if VIDEO:
-        RENDER_RGB = VIDEO
+        if done: #and info["is_success"] == 1:
+            obs = env.reset()
 
-    env = gym.make('FetchReach-v1')
-    env.seed(SEED)
-    env.reward_type = 'dense'
-    agent_obs = env.reset()
-    n_step = range(1000)
-    for t in tqdm(n_step):
-        agent_action, _ = policy_model.predict(agent_obs, deterministic=True)
 
-        all_log['agent_ac'].append(agent_action)
-
-        obs, reward, done, info = env.step(agent_action)
-        if RENDER:
-            env.render(mode='human')
-            time.sleep(0.05)
-
-        elif RENDER_RGB and VIDEO:
-            img_array = env.render(mode='rgb_array')
-            img = Image.fromarray(img_array, 'RGB')
-            img = img.resize((500, 500))
-            images.append(img)
-
-        if done or info["is_success"] == 1:
-            agent_obs = env.reset()
-    env.close()
 

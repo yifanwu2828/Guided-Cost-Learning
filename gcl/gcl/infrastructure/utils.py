@@ -252,7 +252,7 @@ def sample_trajectory(env,
 
         # end the rollout if (rollout can end due to done, or due to max_path_length, or success in GoalEnv)
         rollout_done = 0
-        if done or steps >= max_path_length: #or info.get("is_success", 0.0) == 1:
+        if done or steps >= max_path_length or info.get("is_success", 0.0) == 1:
             rollout_done = 1  # HINT: this is either 0 or 1
         terminals.append(rollout_done)
 

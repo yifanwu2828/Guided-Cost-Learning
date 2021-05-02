@@ -247,24 +247,23 @@ if __name__ == '__main__':
     params['algo'] = 'her'
     params["EnvWrapper"] = ''
     # params["ep_len"] = 50
-    params["learning_rate"] = 5e-4
 
     '''Outer Training Loop (Algorithm 1: Guided cost learning)'''
     # Number of iteration of outer training loop (Algorithm 1)
     params['n_iter'] = 51  # converge PPO:20, A2C: 100+ ,Her
     # Number of expert rollouts to add to demo replay buffer before outer loop
-    params['demo_size'] = 2000
+    params['demo_size'] = 300
 
     ''' Train Reward (Algorithm 2) '''
     # Number of `expert` rollouts to sample from replay buffer per reward update
     # Number of `policy` rollouts to sample from replay buffer per reward update
-    params["train_reward_demo_batch_size"] = 500
+    params["train_reward_demo_batch_size"] = 100
     params["train_reward_sample_batch_size"] = 100
     params["samp_recent"] = True
 
     ''' Train Policy (PPO, A2C, SAC, SAC+HER) '''
     # Number of transition steps to sample from sample replay buffer per policy update
-    params["train_batch_size"] = 10_000  # 10_000
+    params["train_batch_size"] = 10_000
 
     # size of subset should be less than size of set
     assert params['demo_size'] >= params["train_reward_demo_batch_size"]

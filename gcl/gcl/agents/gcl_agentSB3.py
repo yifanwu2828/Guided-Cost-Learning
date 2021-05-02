@@ -146,12 +146,12 @@ class GCL_AgentSB3(BaseAgent, metaclass=ABCMeta):
                 # SAC
                 ent_coef='auto',
                 batch_size=2000,
-                gamma=0.95,
+                gamma=0.99,
                 learning_rate=self.agent_params.get('policy_lr', 1e-3),
                 learning_starts=0,
 
                 # utils
-                # tensorboard_log=self.agent_params.get('tensorboard_log', None),
+                tensorboard_log=self.agent_params.get('tensorboard_log', None),
                 verbose=self.agent_params.get('verbose', 1),
                 seed=self.agent_params.get('seed', 42),
                 device=ptu.device
