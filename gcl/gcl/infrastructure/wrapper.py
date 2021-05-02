@@ -55,13 +55,22 @@ class LearningReward(gym.Wrapper):
 
     def step(self, action):
         observation, _, done, info = self.env.step(action)
-        reward=self.reward(
-                    observation=torch.from_numpy(observation).float().to(self.device),
+
+        if isinstance(observation, dict):
+            observation_array = self.extract_concat(observation)
+        else:
+            observation_array = observation
+
+        reward = self.reward(
+                    observation=torch.from_numpy(observation_array).float().to(self.device),
                     action=torch.from_numpy(action).float().to(self.device),
                 ).to('cpu').detach().numpy()
         return observation, reward, done, info
 
 
-# if __name__ == '__main__':
-#     env = gym.make("FrozenLake-v0")
-#     env = LearningReward(env)
+    @staticmethod
+    def extract_concat(obsDict: dict) -> np.ndarray:
+        assert isinstance(obsDict, dict)
+        obs = np.concatenate([v for k, v in obsDict.items() if k != 'achieved_goal'], axis=None, dtype=np.float32)
+        return obs
+

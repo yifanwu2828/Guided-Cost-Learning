@@ -9,7 +9,7 @@ import torch
 import gym
 from gym import spaces
 from stable_baselines3 import A2C, SAC, PPO, HER
-
+from icecream import ic
 try:
     import gym_nav
 except ImportError:
@@ -101,7 +101,8 @@ def evaluate_model(eval_env_id, model, num_episodes=1000, render=False):
         while not done:
             # stable-baselines3 implementation
             action, _states = model.predict(obs, deterministic=True)
-            # # our implementation
+
+            # our implementation
             # action, log_prob = model.get_action(obs)
             # action = action[0]
 
@@ -181,6 +182,8 @@ def sample_trajectory(env,
                     time.sleep(0.1)
 
         # use the most recent ob to decide what to do
+        if isinstance(ob, dict):
+            ob = extract_concat(ob)
         obs.append(ob)
 
         # expert policy
@@ -208,7 +211,7 @@ def sample_trajectory(env,
                 if algo_name == 'ppo' or algo_name == 'a2c':
                     log_prob = policy.policy.action_dist.log_prob(ac_tensor)
 
-                elif algo_name == 'sac':
+                elif algo_name == 'sac' or algo_name == 'her':
                     log_prob = policy.actor.action_dist.log_prob(torch.unsqueeze(ac_tensor, -1))
                     log_prob = log_prob.sum(-1, keepdim=True)
                 else:
@@ -226,6 +229,9 @@ def sample_trajectory(env,
 
         # take that action and record results
         ob, rew, done, info = env.step(ac)
+        if isinstance(ob, dict):
+            ob = extract_concat(ob)
+
         # record result(obs) of taking that action
         steps += 1
         next_obs.append(ob)
@@ -246,7 +252,7 @@ def sample_trajectory(env,
 
         # end the rollout if (rollout can end due to done, or due to max_path_length, or success in GoalEnv)
         rollout_done = 0
-        if done or steps >= max_path_length:  # or info.get("is_success", 0.0) == 1:
+        if done or steps >= max_path_length: #or info.get("is_success", 0.0) == 1:
             rollout_done = 1  # HINT: this is either 0 or 1
         terminals.append(rollout_done)
 
@@ -442,7 +448,7 @@ def mean_squared_error(a, b):
     return np.mean((a - b) ** 2)
 
 
-def extract_concat(obsDict: dict):
+def extract_concat(obsDict: dict) -> np.ndarray:
     assert isinstance(obsDict, dict)
     obs = np.concatenate([v for k, v in obsDict.items() if k != 'achieved_goal'], axis=None, dtype=np.float32)
     return obs
