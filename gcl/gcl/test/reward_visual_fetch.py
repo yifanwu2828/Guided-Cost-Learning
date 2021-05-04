@@ -140,7 +140,7 @@ if __name__ == '__main__':
     obs = env.reset()
     n_step = range(2000)
     for _ in tqdm(n_step):
-        action, _states = policy_model.predict(obs, deterministic=False)
+        action, _states = policy_model.predict(obs, deterministic=True)
         env.render(mode='human')
         obs, reward, done, info = env.step(action)
 
