@@ -4,10 +4,12 @@
 ![GitHub last commit](https://img.shields.io/github/last-commit/yifanwu2828/Inverse-Reinforcement-Learning)
 
 ## Installation
-1. Install Stable baselines 3
+1. Install 3rd party packages
 ```bash
-pip install stable-baselines3
+pip install -r requirements.txt
 ```
+*Note you have to install mujoco for FetchReach-v1 Env
+
 2. Install gym_nav environment and gcl
 ```bash
 pip install -e .
