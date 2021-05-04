@@ -17,9 +17,12 @@ pip install -e .
 1. Train an RL agent as the expert
 ```bash
 cd scripts
-python3 collect_demo.py
+python3 collect_demo.py  # For 2D-Nav Env
+python3 collect_fetch_demo.py  # For FetchReach-v1 Env 
 ```
 2. Run GCL
 ```bash
-python3 run_exp.py
+cd scripts
+python3 run_gcl_nav.py
+python3 run_gcl_Fetch.py
 ```
